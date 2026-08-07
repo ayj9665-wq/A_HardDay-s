@@ -1,0 +1,26 @@
+export const CLOCK_HOURS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const;
+
+export type ClockHour = (typeof CLOCK_HOURS)[number];
+export type BackgroundMode = "solid" | "clear";
+
+export type Task = {
+  id: string;
+  text: string;
+  hourSlot: ClockHour;
+  completed: boolean;
+  tapeVariant: 1 | 2;
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AppState = {
+  tasks: Task[];
+  activeTaskId: string | null;
+  backgroundMode: BackgroundMode;
+};
+
+export type TaskDraft = {
+  text: string;
+  hourSlot: ClockHour;
+};
