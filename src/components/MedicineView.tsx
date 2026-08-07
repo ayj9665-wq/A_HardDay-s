@@ -14,7 +14,10 @@ import {
   prepareImageLayer,
   type CompositeAnalysis,
   type ImageLayer,
+  type LayerPlacement,
 } from "../lib/imageAnalysis";
+import { downloadDroppedImage, extractDroppedImageSources } from "../lib/dropImages";
+import { openYoutubeMusicUrl } from "../lib/externalLinks";
 
 const MAX_IMAGES = 10;
 
@@ -46,6 +49,7 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<CompositeAnalysis | null>(null);
   const [draggingFiles, setDraggingFiles] = useState(false);
+  const [importingImage, setImportingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedHex, setCopiedHex] = useState<string | null>(null);
 
@@ -53,7 +57,7 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
     layersRef.current = layers;
   }, [layers]);
 
-  const addFiles = useCallback(async (files: File[]) => {
+  const addFiles = useCallback(async (files: File[], placement?: LayerPlacement) => {
     const images = files.filter((file) => file.type.startsWith("image/"));
     const available = MAX_IMAGES - layersRef.current.length;
     if (images.length === 0) {
@@ -69,7 +73,7 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
     const accepted = images.slice(0, available);
     const startIndex = layersRef.current.length;
     const prepared = await Promise.allSettled(
-      accepted.map((file, index) => prepareImageLayer(file, startIndex + index)),
+      accepted.map((file, index) => prepareImageLayer(file, startIndex + index, placement)),
     );
     const successful = prepared
       .filter((result): result is PromiseFulfilledResult<ImageLayer> => result.status === "fulfilled")
@@ -184,10 +188,53 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
     }
   };
 
-  const receiveDrop = (event: DragEvent<HTMLDivElement>) => {
+  const receiveDrop = async (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+    event.stopPropagation();
     setDraggingFiles(false);
-    void addFiles([...event.dataTransfer.files]);
+    const bounds = stageRef.current?.getBoundingClientRect();
+    const placement = bounds ? {
+      x: (event.clientX - bounds.left) / bounds.width * 100,
+      y: (event.clientY - bounds.top) / bounds.height * 100,
+    } : undefined;
+    const sources = extractDroppedImageSources(event.dataTransfer);
+    if (sources.length === 0) {
+      setError("DROP A JPG OR PNG IMAGE, NOT A WEB PAGE.");
+      return;
+    }
+
+    const available = MAX_IMAGES - layersRef.current.length;
+    if (available <= 0) {
+      setError(`YOU CAN PLACE UP TO ${MAX_IMAGES} IMAGES.`);
+      return;
+    }
+    const accepted = sources.slice(0, available);
+    const localFiles = accepted
+      .filter((source) => source.kind === "file")
+      .map((source) => source.file);
+    if (localFiles.length > 0) {
+      await addFiles(localFiles, placement);
+      return;
+    }
+
+    setImportingImage(true);
+    setError(null);
+    try {
+      const downloads = await Promise.allSettled(
+        accepted.filter((source) => source.kind === "url")
+          .map((source) => downloadDroppedImage(source.url)),
+      );
+      const downloadedFiles = downloads
+        .filter((result): result is PromiseFulfilledResult<File> => result.status === "fulfilled")
+        .map((result) => result.value);
+      if (downloadedFiles.length > 0) await addFiles(downloadedFiles, placement);
+      const failure = downloads.find((result) => result.status === "rejected");
+      if (failure?.status === "rejected") {
+        setError(failure.reason instanceof Error ? failure.reason.message : "IMAGE IMPORT FAILED.");
+      }
+    } finally {
+      setImportingImage(false);
+    }
   };
 
   const removeLayer = (id: string) => {
@@ -197,6 +244,27 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
     setLayers(remaining);
     setSelectedId(remaining.at(-1)?.id ?? null);
   };
+
+  useEffect(() => {
+    if (hidden || !selectedId) return;
+
+    const deleteSelectedLayer = (event: KeyboardEvent) => {
+      if (event.key !== "Delete") return;
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement
+        || target instanceof HTMLTextAreaElement
+        || target instanceof HTMLSelectElement
+        || (target instanceof HTMLElement && target.isContentEditable)
+      ) return;
+
+      event.preventDefault();
+      removeLayer(selectedId);
+    };
+
+    window.addEventListener("keydown", deleteSelectedLayer);
+    return () => window.removeEventListener("keydown", deleteSelectedLayer);
+  }, [hidden, layers, selectedId]);
 
   const bringToFront = (id: string) => {
     setLayers((current) => {
@@ -224,6 +292,13 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
     }
   };
 
+  const openMusic = (url: string) => {
+    setError(null);
+    void openYoutubeMusicUrl(url).catch(() => {
+      setError("YOUTUBE MUSIC COULD NOT BE OPENED.");
+    });
+  };
+
   return (
     <section className="medicine-workspace app-view" aria-label="Color medicine" hidden={hidden}>
       <div
@@ -233,19 +308,22 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
           event.preventDefault();
           setDraggingFiles(true);
         }}
-        onDragOver={(event) => event.preventDefault()}
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
         onDragLeave={(event) => {
           const target = event.relatedTarget;
           if (!(target instanceof Node) || !event.currentTarget.contains(target)) setDraggingFiles(false);
         }}
-        onDrop={receiveDrop}
+        onDrop={(event) => void receiveDrop(event)}
         onPointerDown={() => setSelectedId(null)}
       >
         {layers.length === 0 ? (
           <button type="button" className="capture-prompt" onClick={() => inputRef.current?.click()}>
             <span className="capture-mark" aria-hidden="true">+</span>
-            <strong>{draggingFiles ? "RELEASE TO ADD" : "DROP SCREENSHOTS"}</strong>
-            <small>ADD MULTIPLE IMAGES · CTRL + V</small>
+            <strong>{draggingFiles ? "RELEASE TO ADD" : "DROP IMAGES"}</strong>
+            <small>FROM DESKTOP OR WEB · JPG · PNG · CTRL + V</small>
           </button>
         ) : (
           <>
@@ -288,11 +366,12 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
                 </div>
               );
             })}
-            <button type="button" className="add-image" onClick={() => inputRef.current?.click()}>
-              + ADD IMAGE
-            </button>
-            {draggingFiles && <div className="drop-curtain">RELEASE TO ADD IMAGES</div>}
           </>
+        )}
+        {(draggingFiles || importingImage) && (
+          <div className="drop-curtain">
+            {importingImage ? "IMPORTING WEB IMAGE..." : "RELEASE TO ADD IMAGES"}
+          </div>
         )}
         <input
           ref={inputRef}
@@ -344,16 +423,43 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
               <h2>{analysis.mood.name}</h2>
               <p>{analysis.mood.tags.join(" · ")}</p>
             </div>
-            <a className="music-primary" href={youtubeMusicSearchUrl(analysis.mood.searchQueries[0])} target="_blank" rel="noreferrer">
+            <a
+              className="music-primary"
+              href={youtubeMusicSearchUrl(analysis.mood.searchQueries[0])}
+              onClick={(event) => {
+                event.preventDefault();
+                openMusic(event.currentTarget.href);
+              }}
+            >
               PLAY ON YOUTUBE MUSIC <span aria-hidden="true">↗</span>
             </a>
           </div>
 
           <div className="music-alternatives" aria-label="Alternative music prescriptions">
-            {analysis.mood.searchQueries.slice(1).map((query, index) => (
-              <a key={query} href={youtubeMusicSearchUrl(query)} target="_blank" rel="noreferrer">
-                <span>0{index + 2}</span>
-                {query.toUpperCase()}
+            <a
+              href={youtubeMusicSearchUrl(analysis.mood.searchQueries[0])}
+              onClick={(event) => {
+                event.preventDefault();
+                openMusic(event.currentTarget.href);
+              }}
+            >
+              <span>00</span>
+              <span className="music-result-name">{analysis.mood.searchQueries[0].toUpperCase()}</span>
+              <b aria-hidden="true">↗</b>
+            </a>
+            {analysis.recommendedTracks.map((track, index) => (
+              <a
+                key={track.id}
+                href={youtubeMusicSearchUrl(`${track.artist} ${track.title}`)}
+                onClick={(event) => {
+                  event.preventDefault();
+                  openMusic(event.currentTarget.href);
+                }}
+              >
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <span className="music-result-name">
+                  <strong>{track.title}</strong> — {track.artist}
+                </span>
                 <b aria-hidden="true">↗</b>
               </a>
             ))}

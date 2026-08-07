@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getAvailableHours,
   getDefaultHour,
+  formatTrackedDuration,
   getHourPriority,
   getNextBackgroundMode,
   getPeriodLabel,
@@ -9,6 +10,7 @@ import {
   normalizeState,
   pickNextActiveTask,
   sanitizeTaskText,
+  trackedSecondsToAngle,
 } from "./tasks";
 import type { Task } from "../types";
 
@@ -20,6 +22,8 @@ function task(overrides: Partial<Task> = {}): Task {
     completed: overrides.completed ?? false,
     tapeVariant: overrides.tapeVariant ?? 1,
     order: overrides.order ?? 0,
+    linkedApplications: overrides.linkedApplications ?? [],
+    trackedSeconds: overrides.trackedSeconds ?? 0,
     createdAt: overrides.createdAt ?? "2026-01-01T00:00:00.000Z",
     updatedAt: overrides.updatedAt ?? "2026-01-01T00:00:00.000Z",
   };
@@ -41,6 +45,17 @@ describe("task domain", () => {
     expect(hourToAngle(12)).toBe(0);
     expect(hourToAngle(3)).toBe(90);
     expect(hourToAngle(11)).toBe(330);
+  });
+
+  it("moves tracked work at the same rate as an hour hand", () => {
+    expect(trackedSecondsToAngle(0)).toBe(0);
+    expect(trackedSecondsToAngle(3_600)).toBe(30);
+    expect(trackedSecondsToAngle(43_200)).toBe(360);
+  });
+
+  it("formats application work in hours and minutes", () => {
+    expect(formatTrackedDuration(0)).toBe("00:00");
+    expect(formatTrackedDuration(4_380)).toBe("01:13");
   });
 
   it("orders task numbers clockwise from 12 o'clock", () => {
@@ -81,6 +96,23 @@ describe("task domain", () => {
     expect(state.activeTaskId).toBe("valid");
   });
 
+  it("migrates task tracking fields and removes invalid application links", () => {
+    const state = normalizeState({
+      tasks: [task({
+        trackedSeconds: 125.5,
+        linkedApplications: [
+          { name: "Code", processName: "Code.exe", executablePath: "C:\\Code.exe", trackedSeconds: 73 },
+          { name: "Duplicate", processName: "Code.exe", executablePath: "c:\\code.exe", trackedSeconds: 0 },
+          { name: "Invalid", processName: "", executablePath: "", trackedSeconds: 0 },
+        ],
+      })],
+    });
+    expect(state.tasks[0].trackedSeconds).toBe(125.5);
+    expect(state.tasks[0].linkedApplications).toEqual([
+      { name: "Code", processName: "Code.exe", executablePath: "C:\\Code.exe", trackedSeconds: 73 },
+    ]);
+  });
+
   it("migrates the previous transparent background preference", () => {
     expect(normalizeState({ backgroundTransparent: true }).backgroundMode).toBe("clear");
     expect(normalizeState({ backgroundTransparent: false }).backgroundMode).toBe("solid");
@@ -94,9 +126,9 @@ describe("task domain", () => {
   });
 
   it("returns the correct title period", () => {
-    expect(getPeriodLabel(new Date(2026, 0, 1, 5, 0))).toBe("Morning");
-    expect(getPeriodLabel(new Date(2026, 0, 1, 12, 0))).toBe("Noon");
-    expect(getPeriodLabel(new Date(2026, 0, 1, 18, 0))).toBe("Night");
-    expect(getPeriodLabel(new Date(2026, 0, 1, 2, 0))).toBe("Night");
+    expect(getPeriodLabel(new Date(2026, 0, 1, 5, 0))).toBe("morning");
+    expect(getPeriodLabel(new Date(2026, 0, 1, 12, 0))).toBe("noon");
+    expect(getPeriodLabel(new Date(2026, 0, 1, 18, 0))).toBe("night");
+    expect(getPeriodLabel(new Date(2026, 0, 1, 2, 0))).toBe("night");
   });
 });

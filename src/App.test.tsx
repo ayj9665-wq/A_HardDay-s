@@ -20,6 +20,7 @@ describe("app view navigation", () => {
   it("opens Medicine from Record and returns to the clock", async () => {
     render(<App />);
     await waitFor(() => expect(screen.getByRole("button", { name: "Open medicine" })).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Save current view as PNG" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Open medicine" }));
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("A Hard Day's medicine");

@@ -1,34 +1,53 @@
 import { useEffect, useRef } from "react";
-import { hourToAngle } from "../domain/tasks";
+import { hourToAngle, trackedSecondsToAngle } from "../domain/tasks";
 import type { ClockHour } from "../types";
 
 type AnalogClockProps = {
   activeHour: ClockHour | null;
+  trackedSeconds?: number;
+  tracking?: boolean;
 };
 
 function rotateHand(element: SVGLineElement | null, angle: number): void {
   element?.setAttribute("transform", `rotate(${angle} 180 180)`);
 }
 
-export function AnalogClock({ activeHour }: AnalogClockProps) {
+export function AnalogClock({
+  activeHour,
+  trackedSeconds = 0,
+  tracking = false,
+}: AnalogClockProps) {
   const hourHandRef = useRef<SVGLineElement>(null);
   const minuteHandRef = useRef<SVGLineElement>(null);
   const secondHandRef = useRef<SVGLineElement>(null);
   const digitalRef = useRef<HTMLTimeElement>(null);
-  const activeHourRef = useRef<ClockHour | null>(activeHour);
+  const taskHandRef = useRef({
+    activeHour,
+    trackedSeconds,
+    tracking,
+    startedAt: performance.now(),
+  });
 
   useEffect(() => {
-    activeHourRef.current = activeHour;
+    taskHandRef.current = {
+      activeHour,
+      trackedSeconds,
+      tracking,
+      startedAt: performance.now(),
+    };
     if (activeHour !== null) {
-      rotateHand(secondHandRef.current, hourToAngle(activeHour));
+      rotateHand(
+        secondHandRef.current,
+        hourToAngle(activeHour) + trackedSecondsToAngle(trackedSeconds),
+      );
     }
-  }, [activeHour]);
+  }, [activeHour, trackedSeconds, tracking]);
 
   useEffect(() => {
     let frame = 0;
     let lastSecond = -1;
 
-    const renderClock = () => {
+    const renderClock = (frameTime: number) => {
       const now = new Date();
       const seconds = now.getSeconds();
       const milliseconds = now.getMilliseconds();
@@ -36,9 +55,18 @@ export function AnalogClock({ activeHour }: AnalogClockProps) {
 
       rotateHand(minuteHandRef.current, minuteAngle);
 
-      if (activeHourRef.current === null) {
+      const taskHand = taskHandRef.current;
+      if (taskHand.activeHour === null) {
         const secondAngle = seconds * 6 + milliseconds * 0.006;
         rotateHand(secondHandRef.current, secondAngle);
+      } else {
+        const liveSeconds = taskHand.trackedSeconds + (taskHand.tracking
+          ? Math.max(0, frameTime - taskHand.startedAt) / 1_000
+          : 0);
+        rotateHand(
+          secondHandRef.current,
+          hourToAngle(taskHand.activeHour) + trackedSecondsToAngle(liveSeconds),
+        );
       }
 
       const actualAngle =
@@ -64,7 +92,7 @@ export function AnalogClock({ activeHour }: AnalogClockProps) {
   }, []);
 
   return (
-    <div className="clock-shell" aria-label={activeHour ? `Active task at ${activeHour}'o` : "Current time"}>
+    <div className="clock-shell" aria-label={activeHour ? `Active task at ${activeHour}'o${tracking ? ", application active" : ""}` : "Current time"}>
       <svg className="analog-clock" viewBox="0 0 360 360" role="img" aria-hidden="true">
         {Array.from({ length: 8 }, (_, index) => {
           const angle = index * 45;

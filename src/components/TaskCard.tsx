@@ -1,16 +1,20 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import tapeOne from "../../Design_sources/tape_01.png";
 import tapeTwo from "../../Design_sources/tape_02.png";
+import { ApplicationIcon } from "./ControlIcons";
+import { formatTrackedDuration } from "../domain/tasks";
 import { CLOCK_HOURS, type ClockHour, type Task } from "../types";
 
 type TaskCardProps = {
   task: Task;
   index: number;
   active: boolean;
+  applicationActive: boolean;
   occupiedHours: Set<ClockHour>;
   onActivate: (id: string) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onManageApplications: (id: string) => void;
   onUpdate: (id: string, text: string, hourSlot: ClockHour) => string | null;
 };
 
@@ -18,10 +22,12 @@ export function TaskCard({
   task,
   index,
   active,
+  applicationActive,
   occupiedHours,
   onActivate,
   onToggle,
   onDelete,
+  onManageApplications,
   onUpdate,
 }: TaskCardProps) {
   const [editing, setEditing] = useState(false);
@@ -70,7 +76,28 @@ export function TaskCard({
       style={position}
       aria-label={`${task.hourSlot}'o, ${task.text}`}
     >
-      <span className="task-index">({String(index + 1).padStart(2, "0")})</span>
+      <span className={`task-index${task.linkedApplications.length > 0 && !applicationActive ? " task-index--app-times" : ""}`}>
+        {task.linkedApplications.length > 0 && !applicationActive ? (
+          <span className="task-app-times">
+            {task.linkedApplications.map((application) => (
+              <span key={application.executablePath} title={`${application.name} work time`}>
+                <b>{application.name}</b>
+                <time>{formatTrackedDuration(application.trackedSeconds)}</time>
+              </span>
+            ))}
+          </span>
+        ) : (
+          <>
+            ({String(index + 1).padStart(2, "0")})
+            {task.linkedApplications.length > 0 && (
+          <i
+                className="task-app-indicator task-app-indicator--active"
+                title="Linked application active"
+          />
+            )}
+          </>
+        )}
+      </span>
       <div className="tape-card">
         <img src={task.tapeVariant === 1 ? tapeOne : tapeTwo} alt="" draggable="false" />
         {editing ? (
@@ -125,6 +152,14 @@ export function TaskCard({
       </div>
       {!editing && (
         <div className="task-actions">
+          <button
+            type="button"
+            onClick={() => onManageApplications(task.id)}
+            aria-label={`Link applications to ${task.text}`}
+            title="Link applications"
+          >
+            <ApplicationIcon />
+          </button>
           <button
             type="button"
             onClick={() => onToggle(task.id)}

@@ -50,6 +50,15 @@ export function AddTaskIcon({ className = "" }: IconProps) {
   );
 }
 
+export function ApplicationIcon({ className = "" }: IconProps) {
+  return (
+    <svg className={`control-icon ${className}`} viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3.5" y="5" width="12" height="9" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M7 18h5M9.5 14v4M15 10.5h2.5a3 3 0 0 1 0 6H16M12 16.5H9.5a3 3 0 0 1 0-6H11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function CloseIcon({ className = "" }: IconProps) {
   return (
     <svg className={`control-icon ${className}`} viewBox="0 0 24 24" aria-hidden="true">
@@ -69,6 +78,23 @@ export function PinIcon({ active, className = "" }: IconProps & { active: boolea
         strokeLinejoin="round"
       />
       <path d="M12 13v8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" />
+    </svg>
+  );
+}
+
+export function SnapshotIcon({ saving, className = "" }: IconProps & { saving: boolean }) {
+  return (
+    <svg className={`control-icon ${className}`} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M8.2 7 9.6 4.8h4.8L15.8 7H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3.2Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="13.5" r="3.5" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="17.8" cy="10" r="1" fill="currentColor" />
+      {saving && <circle cx="19" cy="5" r="2.3" fill="#d80019" />}
     </svg>
   );
 }

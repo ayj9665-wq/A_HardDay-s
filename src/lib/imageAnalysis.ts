@@ -1,4 +1,6 @@
+import type { RecommendationTrack } from "../data/trackCatalog";
 import { deriveMood, extractPalette, type MoodProfile, type PaletteColor } from "../domain/medicine";
+import { recommendTracks } from "../domain/trackRecommendations";
 
 export type ImageLayer = {
   id: string;
@@ -14,13 +16,23 @@ export type ImageLayer = {
 export type CompositeAnalysis = {
   palette: PaletteColor[];
   mood: MoodProfile;
+  recommendedTracks: RecommendationTrack[];
+};
+
+export type LayerPlacement = {
+  x: number;
+  y: number;
 };
 
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const ANALYSIS_WIDTH = 560;
 const ANALYSIS_HEIGHT = 310;
 
-export async function prepareImageLayer(file: File, index = 0): Promise<ImageLayer> {
+export async function prepareImageLayer(
+  file: File,
+  index = 0,
+  placement?: LayerPlacement,
+): Promise<ImageLayer> {
   if (!file.type.startsWith("image/")) {
     throw new Error("DROP PNG, JPG, WEBP, OR GIF IMAGES.");
   }
@@ -31,7 +43,7 @@ export async function prepareImageLayer(file: File, index = 0): Promise<ImageLay
   const previewUrl = URL.createObjectURL(file);
   try {
     const image = await loadImage(previewUrl);
-    const offset = (index % 5) * 4;
+    const offset = (index % 5) * 3;
     const aspect = image.naturalWidth / image.naturalHeight;
     const initialWidth = aspect < 0.8 ? 35 : aspect > 1.8 ? 62 : 48;
     return {
@@ -40,8 +52,8 @@ export async function prepareImageLayer(file: File, index = 0): Promise<ImageLay
       fileName: file.name || "clipboard-image",
       naturalWidth: image.naturalWidth,
       naturalHeight: image.naturalHeight,
-      x: 42 + offset,
-      y: 42 + offset,
+      x: placement ? Math.min(115, Math.max(-15, placement.x + offset)) : 42 + offset,
+      y: placement ? Math.min(115, Math.max(-15, placement.y + offset)) : 42 + offset,
       width: initialWidth,
     };
   } catch (error) {
@@ -52,7 +64,8 @@ export async function prepareImageLayer(file: File, index = 0): Promise<ImageLay
 
 export async function analyzeImageLayers(layers: ImageLayer[]): Promise<CompositeAnalysis> {
   if (layers.length === 0) {
-    return { palette: [], mood: deriveMood([]) };
+    const mood = deriveMood([]);
+    return { palette: [], mood, recommendedTracks: recommendTracks(mood, []) };
   }
 
   const images = await Promise.all(layers.map((layer) => loadImage(layer.previewUrl)));
@@ -72,7 +85,8 @@ export async function analyzeImageLayers(layers: ImageLayer[]): Promise<Composit
 
   const palette = extractPalette(context.getImageData(0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT));
   if (palette.length === 0) throw new Error("NO VISIBLE COLORS FOUND.");
-  return { palette, mood: deriveMood(palette) };
+  const mood = deriveMood(palette);
+  return { palette, mood, recommendedTracks: recommendTracks(mood, palette) };
 }
 
 function loadImage(source: string): Promise<HTMLImageElement> {

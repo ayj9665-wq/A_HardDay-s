@@ -3,6 +3,7 @@ import {
   type AppState,
   type BackgroundMode,
   type ClockHour,
+  type LinkedApplication,
   type Task,
 } from "../types";
 
@@ -22,8 +23,50 @@ export function isClockHour(value: unknown): value is ClockHour {
   return typeof value === "number" && CLOCK_HOURS.includes(value as ClockHour);
 }
 
+function normalizeLinkedApplications(value: unknown): LinkedApplication[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const applications: LinkedApplication[] = [];
+
+  for (const candidate of value) {
+    if (applications.length >= 12 || !candidate || typeof candidate !== "object") break;
+    const source = candidate as Partial<LinkedApplication>;
+    const executablePath = typeof source.executablePath === "string"
+      ? source.executablePath.trim()
+      : "";
+    const processName = typeof source.processName === "string" ? source.processName.trim() : "";
+    if (!executablePath || !processName) continue;
+    const identity = executablePath.toLocaleLowerCase();
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    applications.push({
+      name: typeof source.name === "string" && source.name.trim()
+        ? source.name.trim()
+        : processName.replace(/\.exe$/i, ""),
+      processName,
+      executablePath,
+      trackedSeconds: typeof source.trackedSeconds === "number" && Number.isFinite(source.trackedSeconds)
+        ? Math.max(0, source.trackedSeconds)
+        : 0,
+    });
+  }
+
+  return applications;
+}
+
 export function hourToAngle(hour: ClockHour): number {
   return (hour % 12) * 30;
+}
+
+export function trackedSecondsToAngle(seconds: number): number {
+  return Math.max(0, seconds) / 120;
+}
+
+export function formatTrackedDuration(seconds: number): string {
+  const totalMinutes = Math.floor(Math.max(0, seconds) / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 export function getHourPriority(hour: ClockHour): number {
@@ -41,11 +84,11 @@ export function getDefaultHour(tasks: Task[], ignoredTaskId?: string): ClockHour
   return getAvailableHours(tasks, ignoredTaskId)[0] ?? null;
 }
 
-export function getPeriodLabel(date: Date): "Morning" | "Noon" | "Night" {
+export function getPeriodLabel(date: Date): "morning" | "noon" | "night" {
   const hour = date.getHours();
-  if (hour >= 5 && hour < 12) return "Morning";
-  if (hour >= 12 && hour < 18) return "Noon";
-  return "Night";
+  if (hour >= 5 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 18) return "noon";
+  return "night";
 }
 
 export function normalizeTasks(value: unknown): Task[] {
@@ -69,6 +112,10 @@ export function normalizeTasks(value: unknown): Task[] {
       completed: Boolean(item.completed),
       tapeVariant: item.tapeVariant === 2 ? 2 : 1,
       order: normalized.length,
+      linkedApplications: normalizeLinkedApplications(item.linkedApplications),
+      trackedSeconds: typeof item.trackedSeconds === "number" && Number.isFinite(item.trackedSeconds)
+        ? Math.max(0, item.trackedSeconds)
+        : 0,
       createdAt: typeof item.createdAt === "string" ? item.createdAt : now,
       updatedAt: typeof item.updatedAt === "string" ? item.updatedAt : now,
     });
@@ -132,6 +179,8 @@ export function createTask(text: string, hourSlot: ClockHour, order: number): Ta
     completed: false,
     tapeVariant: random % 2 === 0 ? 1 : 2,
     order,
+    linkedApplications: [],
+    trackedSeconds: 0,
     createdAt: now,
     updatedAt: now,
   };

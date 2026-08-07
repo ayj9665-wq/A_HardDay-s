@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnalogClock } from "./components/AnalogClock";
+import { ApplicationLinker } from "./components/ApplicationLinker";
 import {
   AddTaskIcon,
   BackgroundIcon,
@@ -7,6 +8,7 @@ import {
   CloseIcon,
   PinIcon,
   PillIcon,
+  SnapshotIcon,
 } from "./components/ControlIcons";
 import { MedicineView } from "./components/MedicineView";
 import { TaskCard } from "./components/TaskCard";
@@ -24,7 +26,9 @@ import {
   sanitizeTaskText,
 } from "./domain/tasks";
 import { loadAppState, saveAppState } from "./lib/storage";
-import type { AppState, ClockHour } from "./types";
+import { applicationsMatch, getForegroundApplication } from "./lib/appTracking";
+import { saveCurrentViewAsPng } from "./lib/screenshot";
+import type { AppState, ClockHour, LinkedApplication, RunningApplication } from "./types";
 
 const EMPTY_STATE: AppState = {
   tasks: [],
@@ -34,11 +38,16 @@ const EMPTY_STATE: AppState = {
 };
 
 export default function App() {
+  const appShellRef = useRef<HTMLElement>(null);
   const [state, setState] = useState<AppState>(EMPTY_STATE);
   const [hydrated, setHydrated] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [period, setPeriod] = useState(() => getPeriodLabel(new Date()));
   const [view, setView] = useState<"clock" | "medicine">("clock");
+  const [linkingTaskId, setLinkingTaskId] = useState<string | null>(null);
+  const [foregroundApplication, setForegroundApplication] = useState<RunningApplication | null>(null);
+  const [savingScreenshot, setSavingScreenshot] = useState(false);
+  const [screenshotStatus, setScreenshotStatus] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -82,6 +91,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!hydrated || !window.__TAURI_INTERNALS__) return;
+    let mounted = true;
+    const poll = () => {
+      void getForegroundApplication()
+        .then((application) => {
+          if (mounted) setForegroundApplication(application);
+        })
+        .catch(() => {
+          if (mounted) setForegroundApplication(null);
+        });
+    };
+    poll();
+    const timer = window.setInterval(poll, 700);
+    return () => {
+      mounted = false;
+      window.clearInterval(timer);
+    };
+  }, [hydrated]);
+
+  useEffect(() => {
     const openComposer = (event: globalThis.KeyboardEvent) => {
       if (view === "clock" && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
@@ -106,6 +135,60 @@ export default function App() {
   const activeTask = state.tasks.find(
     (task) => task.id === state.activeTaskId && !task.completed,
   );
+  const linkingTask = state.tasks.find((task) => task.id === linkingTaskId) ?? null;
+  const activeLinkedApplication = activeTask?.linkedApplications.find(
+    (application) => applicationsMatch(application, foregroundApplication),
+  ) ?? null;
+  const activeApplicationPath = activeLinkedApplication?.executablePath ?? null;
+  const isTracking = activeLinkedApplication !== null;
+
+  const addTrackedSeconds = useCallback((
+    taskId: string,
+    executablePath: string,
+    seconds: number,
+  ) => {
+    if (seconds <= 0) return;
+    setState((current) => ({
+      ...current,
+      tasks: current.tasks.map((task) => task.id === taskId
+        ? {
+            ...task,
+            trackedSeconds: task.trackedSeconds + seconds,
+            linkedApplications: task.linkedApplications.map((application) =>
+              application.executablePath.toLocaleLowerCase() === executablePath.toLocaleLowerCase()
+                ? { ...application, trackedSeconds: application.trackedSeconds + seconds }
+                : application),
+            updatedAt: new Date().toISOString(),
+          }
+        : task),
+    }));
+  }, []);
+
+  useEffect(() => {
+    const taskId = activeTask?.id;
+    if (!taskId || !activeApplicationPath) return;
+
+    let lastSample = performance.now();
+    let pendingSeconds = 0;
+    const sample = () => {
+      const now = performance.now();
+      pendingSeconds += Math.min((now - lastSample) / 1_000, 1.5);
+      lastSample = now;
+      if (pendingSeconds >= 5) {
+        addTrackedSeconds(taskId, activeApplicationPath, pendingSeconds);
+        pendingSeconds = 0;
+      }
+    };
+    const timer = window.setInterval(sample, 500);
+
+    return () => {
+      window.clearInterval(timer);
+      sample();
+      if (pendingSeconds >= 0.05) {
+        addTrackedSeconds(taskId, activeApplicationPath, pendingSeconds);
+      }
+    };
+  }, [activeApplicationPath, activeTask?.id, addTrackedSeconds]);
 
   const addTask = (text: string, hourSlot: ClockHour): string | null => {
     const cleanText = sanitizeTaskText(text);
@@ -183,12 +266,23 @@ export default function App() {
     });
   };
 
+  const saveLinkedApplications = (applications: LinkedApplication[]) => {
+    if (!linkingTaskId) return;
+    setState((current) => ({
+      ...current,
+      tasks: current.tasks.map((task) => task.id === linkingTaskId
+        ? { ...task, linkedApplications: applications, updatedAt: new Date().toISOString() }
+        : task),
+    }));
+    setLinkingTaskId(null);
+  };
+
   if (!hydrated) {
     return <div className="app-loading">A Hard Day's</div>;
   }
 
   return (
-    <main className={`app-shell app-shell--${state.backgroundMode} app-shell--${view}`}>
+    <main ref={appShellRef} className={`app-shell app-shell--${state.backgroundMode} app-shell--${view}`}>
       <WindowChrome />
       <header className="app-header">
         <h1 data-tauri-drag-region>
@@ -204,7 +298,11 @@ export default function App() {
           if (event.target === event.currentTarget) setComposerOpen(true);
         }}
       >
-        <AnalogClock activeHour={activeTask?.hourSlot ?? null} />
+        <AnalogClock
+          activeHour={activeTask?.hourSlot ?? null}
+          trackedSeconds={activeTask?.trackedSeconds ?? 0}
+          tracking={isTracking}
+        />
         <div className="task-ring">
           {state.tasks.map((task) => (
             <TaskCard
@@ -212,10 +310,12 @@ export default function App() {
               task={task}
               index={clockwiseTasks.findIndex((clockwiseTask) => clockwiseTask.id === task.id)}
               active={task.id === state.activeTaskId}
+              applicationActive={task.id === state.activeTaskId && isTracking}
               occupiedHours={occupiedHours}
               onActivate={activateTask}
               onToggle={toggleTask}
               onDelete={deleteTask}
+              onManageApplications={setLinkingTaskId}
               onUpdate={updateTask}
             />
           ))}
@@ -241,6 +341,33 @@ export default function App() {
       </button>
 
       <div className="manage-controls">
+        <button
+          type="button"
+          className="snapshot-toggle"
+          data-screenshot-ignore
+          disabled={savingScreenshot}
+          aria-label="Save current view as PNG"
+          title="Save current view as PNG"
+          onClick={() => {
+            const shell = appShellRef.current;
+            if (!shell || savingScreenshot) return;
+            setSavingScreenshot(true);
+            setScreenshotStatus(null);
+            void saveCurrentViewAsPng(shell, view, state.backgroundMode === "clear")
+              .then((saved) => {
+                if (!saved) return;
+                setScreenshotStatus("PNG SAVED");
+                window.setTimeout(() => setScreenshotStatus(null), 1_800);
+              })
+              .catch(() => {
+                setScreenshotStatus("PNG SAVE FAILED");
+                window.setTimeout(() => setScreenshotStatus(null), 2_400);
+              })
+              .finally(() => setSavingScreenshot(false));
+          }}
+        >
+          <SnapshotIcon saving={savingScreenshot} />
+        </button>
         <button
           type="button"
           className="pin-toggle"
@@ -281,6 +408,12 @@ export default function App() {
         )}
       </div>
 
+      {screenshotStatus && (
+        <div className="screenshot-status" data-screenshot-ignore role="status">
+          {screenshotStatus}
+        </div>
+      )}
+
       {composerOpen && (
         <div className="composer-overlay" onMouseDown={(event) => {
           if (event.target === event.currentTarget) setComposerOpen(false);
@@ -292,6 +425,15 @@ export default function App() {
             onAdd={addTask}
           />
         </div>
+      )}
+
+      {linkingTask && (
+        <ApplicationLinker
+          task={linkingTask}
+          foregroundApplication={foregroundApplication}
+          onSave={saveLinkedApplications}
+          onClose={() => setLinkingTaskId(null)}
+        />
       )}
     </main>
   );
