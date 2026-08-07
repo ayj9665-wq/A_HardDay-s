@@ -102,6 +102,7 @@ export function normalizeState(value: unknown): AppState {
     tasks,
     activeTaskId: activeExists ? (source.activeTaskId ?? null) : (firstIncomplete?.id ?? null),
     backgroundMode,
+    alwaysOnTop: source.alwaysOnTop === true,
   };
 }
 

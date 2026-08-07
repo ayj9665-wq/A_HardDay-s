@@ -87,6 +87,12 @@ describe("task domain", () => {
     expect(normalizeState({ backgroundMode: "glass" }).backgroundMode).toBe("clear");
   });
 
+  it("restores the always-on-top preference safely", () => {
+    expect(normalizeState({ alwaysOnTop: true }).alwaysOnTop).toBe(true);
+    expect(normalizeState({ alwaysOnTop: "yes" }).alwaysOnTop).toBe(false);
+    expect(normalizeState(null).alwaysOnTop).toBe(false);
+  });
+
   it("returns the correct title period", () => {
     expect(getPeriodLabel(new Date(2026, 0, 1, 5, 0))).toBe("Morning");
     expect(getPeriodLabel(new Date(2026, 0, 1, 12, 0))).toBe("Noon");

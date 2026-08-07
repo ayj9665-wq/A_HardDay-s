@@ -18,6 +18,7 @@ export type AppState = {
   tasks: Task[];
   activeTaskId: string | null;
   backgroundMode: BackgroundMode;
+  alwaysOnTop: boolean;
 };
 
 export type TaskDraft = {

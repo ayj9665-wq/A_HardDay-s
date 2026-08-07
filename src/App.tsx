@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnalogClock } from "./components/AnalogClock";
+import {
+  AddTaskIcon,
+  BackgroundIcon,
+  BackIcon,
+  CloseIcon,
+  PinIcon,
+  PillIcon,
+} from "./components/ControlIcons";
+import { MedicineView } from "./components/MedicineView";
 import { TaskCard } from "./components/TaskCard";
 import { TodoComposer } from "./components/TodoComposer";
+import { WindowChrome } from "./components/WindowChrome";
 import {
   MAX_TASKS,
   createTask,
@@ -20,6 +30,7 @@ const EMPTY_STATE: AppState = {
   tasks: [],
   activeTaskId: null,
   backgroundMode: "solid",
+  alwaysOnTop: false,
 };
 
 export default function App() {
@@ -27,6 +38,7 @@ export default function App() {
   const [hydrated, setHydrated] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [period, setPeriod] = useState(() => getPeriodLabel(new Date()));
+  const [view, setView] = useState<"clock" | "medicine">("clock");
 
   useEffect(() => {
     let mounted = true;
@@ -56,48 +68,13 @@ export default function App() {
   }, [state.backgroundMode]);
 
   useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    let cancelled = false;
-    let timer: number | undefined;
-    let decorated: boolean | null = null;
-
-    void import("@tauri-apps/api/window").then(({ cursorPosition, getCurrentWindow }) => {
-      const appWindow = getCurrentWindow();
-
-      const pollWindowHover = async () => {
-        try {
-          const [cursor, position, size] = await Promise.all([
-            cursorPosition(),
-            appWindow.outerPosition(),
-            appWindow.outerSize(),
-          ]);
-          const cursorIsInside =
-            cursor.x >= position.x &&
-            cursor.x <= position.x + size.width &&
-            cursor.y >= position.y &&
-            cursor.y <= position.y + size.height;
-
-          if (cursorIsInside !== decorated) {
-            decorated = cursorIsInside;
-            const contentSize = await appWindow.innerSize();
-            await appWindow.setDecorations(cursorIsInside);
-            await appWindow.setSize(contentSize);
-          }
-        } catch {
-          // Keep the app usable if a platform does not support dynamic decorations.
-        } finally {
-          if (!cancelled) timer = window.setTimeout(pollWindowHover, 120);
-        }
-      };
-
-      void pollWindowHover();
-    });
-
-    return () => {
-      cancelled = true;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, []);
+    if (!hydrated || !window.__TAURI_INTERNALS__) return;
+    void import("@tauri-apps/api/window")
+      .then(({ getCurrentWindow }) => getCurrentWindow().setAlwaysOnTop(state.alwaysOnTop))
+      .catch(() => {
+        // Keep the rest of the app usable if the platform rejects this window level.
+      });
+  }, [hydrated, state.alwaysOnTop]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setPeriod(getPeriodLabel(new Date())), 30_000);
@@ -106,14 +83,14 @@ export default function App() {
 
   useEffect(() => {
     const openComposer = (event: globalThis.KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
+      if (view === "clock" && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         setComposerOpen(true);
       }
     };
     window.addEventListener("keydown", openComposer);
     return () => window.removeEventListener("keydown", openComposer);
-  }, []);
+  }, [view]);
 
   const occupiedHours = useMemo(
     () => new Set(state.tasks.map((task) => task.hourSlot)),
@@ -211,14 +188,18 @@ export default function App() {
   }
 
   return (
-    <main className={`app-shell app-shell--${state.backgroundMode}`}>
-      <header className="app-header" data-tauri-drag-region>
-        <h1 data-tauri-drag-region>A Hard Day's <span data-tauri-drag-region>{period}</span></h1>
+    <main className={`app-shell app-shell--${state.backgroundMode} app-shell--${view}`}>
+      <WindowChrome />
+      <header className="app-header">
+        <h1 data-tauri-drag-region>
+          A Hard Day's <span data-tauri-drag-region>{view === "medicine" ? "medicine" : period}</span>
+        </h1>
       </header>
 
       <section
-        className="clock-workspace"
+        className="clock-workspace app-view"
         aria-label="Task clock"
+        hidden={view !== "clock"}
         onDoubleClick={(event) => {
           if (event.target === event.currentTarget) setComposerOpen(true);
         }}
@@ -243,30 +224,61 @@ export default function App() {
           <p className="empty-state">ADD YOUR FIRST TASK</p>
         )}
       </section>
+      <MedicineView hidden={view !== "medicine"} />
+
+      <button
+        type="button"
+        className="record-toggle"
+        aria-pressed={view === "medicine"}
+        aria-label={view === "medicine" ? "Back to clock" : "Open medicine"}
+        title={view === "medicine" ? "Back to clock" : "Open medicine"}
+        onClick={() => {
+          setComposerOpen(false);
+          setView((current) => current === "clock" ? "medicine" : "clock");
+        }}
+      >
+        {view === "medicine" ? <BackIcon /> : <PillIcon />}
+      </button>
 
       <div className="manage-controls">
+        <button
+          type="button"
+          className="pin-toggle"
+          aria-pressed={state.alwaysOnTop}
+          aria-label={state.alwaysOnTop ? "Disable always on top" : "Keep window always on top"}
+          title={state.alwaysOnTop ? "Always on top: On" : "Always on top: Off"}
+          onClick={() => setState((current) => ({
+            ...current,
+            alwaysOnTop: !current.alwaysOnTop,
+          }))}
+        >
+          <PinIcon active={state.alwaysOnTop} />
+        </button>
         <button
           type="button"
           className="background-toggle"
           data-mode={state.backgroundMode}
           aria-label={`Current background: ${state.backgroundMode}. Switch mode`}
-          title="Switch background: SOLID → CLEAR"
+          title={`Background: ${state.backgroundMode}. Click to switch`}
           onClick={() => setState((current) => ({
             ...current,
             backgroundMode: getNextBackgroundMode(current.backgroundMode),
           }))}
         >
-          BG {state.backgroundMode.toUpperCase()}
+          <BackgroundIcon mode={state.backgroundMode} />
         </button>
-        <button
-          type="button"
-          className="manage-toggle"
-          aria-expanded={composerOpen}
-          title="Manage tasks (Ctrl+N)"
-          onClick={() => setComposerOpen((open) => !open)}
-        >
-          {composerOpen ? "CLOSE" : "+ TASK"}
-        </button>
+        {view === "clock" && (
+          <button
+            type="button"
+            className="manage-toggle"
+            aria-expanded={composerOpen}
+            aria-label={composerOpen ? "Close task manager" : "Add task"}
+            title={composerOpen ? "Close task manager" : "Add task (Ctrl+N)"}
+            onClick={() => setComposerOpen((open) => !open)}
+          >
+            {composerOpen ? <CloseIcon /> : <AddTaskIcon />}
+          </button>
+        )}
       </div>
 
       {composerOpen && (
