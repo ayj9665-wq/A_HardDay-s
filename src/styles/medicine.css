@@ -1,0 +1,328 @@
+.medicine-workspace {
+  min-height: 0;
+  padding: 34px 0 58px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.medicine-capture {
+  position: relative;
+  width: min(100%, 600px);
+  height: clamp(225px, 37vh, 330px);
+  margin: 0 auto;
+  border: 0;
+  overflow: hidden;
+  background: transparent;
+  transition: background 130ms ease;
+}
+
+.medicine-capture--dragging {
+  background: var(--accent-green);
+}
+
+.medicine-capture--ready {
+  background: transparent;
+}
+
+.capture-prompt {
+  width: 100%;
+  height: 100%;
+  padding: 20px;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+}
+
+.capture-mark {
+  width: 42px;
+  height: 42px;
+  border: 2px solid var(--ink);
+  display: grid;
+  place-items: center;
+  margin-bottom: 5px;
+  color: var(--alert);
+  font: 400 2rem/1 Arial, sans-serif;
+}
+
+.capture-prompt strong {
+  font: 800 clamp(1.1rem, 3.5vw, 1.6rem)/1 "Arial Narrow", Arial, sans-serif;
+  letter-spacing: -0.045em;
+}
+
+.capture-prompt small {
+  color: var(--neutral-600);
+  font: 700 0.66rem/1 "Courier New", monospace;
+  letter-spacing: 0.06em;
+}
+
+.medicine-layer {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  cursor: move;
+  outline: 0 solid transparent;
+  touch-action: none;
+  user-select: none;
+}
+
+.medicine-layer:focus-visible,
+.medicine-layer--selected {
+  outline: 2px solid var(--accent-yellow);
+  outline-offset: 2px;
+}
+
+.medicine-layer > img {
+  width: 100%;
+  height: auto;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.layer-resize-handle {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--accent-yellow);
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.drop-curtain {
+  position: absolute;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  background: var(--accent-green-90);
+  font: 800 clamp(1rem, 3vw, 1.5rem)/1 "Courier New", monospace;
+  pointer-events: none;
+}
+
+.layer-editor {
+  width: min(100%, 600px);
+  margin: 7px auto 0;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+}
+
+.layer-editor-heading {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  font: 700 0.58rem/1 "Courier New", monospace;
+}
+
+.layer-editor-heading > span {
+  color: var(--alert);
+}
+
+.layer-editor-heading > strong {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.layer-editor-heading button {
+  padding: 2px 5px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.layer-editor-heading button:hover,
+.layer-editor-heading button:focus-visible {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.medicine-status {
+  min-height: 13px;
+  margin: 9px 0 13px;
+  color: var(--neutral-600);
+  font: 700 0.62rem/1 "Courier New", monospace;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.medicine-status--error {
+  color: var(--alert);
+}
+
+.medicine-result {
+  width: min(100%, 600px);
+  margin: 13px auto 0;
+}
+
+.palette {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.palette-color {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: var(--ink);
+  background: transparent;
+  cursor: pointer;
+}
+
+.palette-color > span {
+  height: 34px;
+  border: 1px solid var(--ink-veil);
+  display: block;
+  background: var(--palette-color);
+}
+
+.palette-color > strong {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  font: 700 clamp(0.5rem, 1.6vw, 0.62rem)/1 "Courier New", monospace;
+  text-overflow: ellipsis;
+}
+
+.mood-prescription {
+  margin-top: 17px;
+  padding: 14px 0;
+  border-top: 2px solid var(--ink);
+  border-bottom: 1.5px solid var(--ink);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.prescription-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--alert);
+  font: 700 0.58rem/1 "Courier New", monospace;
+  letter-spacing: 0.08em;
+}
+
+.mood-prescription h2 {
+  margin: 0;
+  font: 800 clamp(1.4rem, 4.5vw, 2rem)/0.95 "Arial Narrow", Arial, sans-serif;
+  letter-spacing: -0.045em;
+}
+
+.mood-prescription p {
+  margin: 6px 0 0;
+  font: 700 0.59rem/1.2 "Courier New", monospace;
+}
+
+.music-primary {
+  min-width: 190px;
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1.5px solid var(--ink);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  color: var(--ink);
+  background: var(--accent-yellow);
+  font: 800 0.63rem/1.15 "Courier New", monospace;
+  text-decoration: none;
+}
+
+.music-primary:hover,
+.music-primary:focus-visible {
+  color: var(--paper);
+  background: var(--ink);
+}
+
+.music-alternatives {
+  border-bottom: 1.5px solid var(--ink);
+}
+
+.music-alternatives a {
+  min-height: 34px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--neutral-400);
+  display: grid;
+  grid-template-columns: 27px 1fr auto;
+  align-items: center;
+  color: var(--ink);
+  font: 700 0.61rem/1.2 "Courier New", monospace;
+  text-decoration: none;
+}
+
+.music-alternatives a:last-child {
+  border-bottom: 0;
+}
+
+.music-alternatives a:hover,
+.music-alternatives a:focus-visible {
+  background: var(--accent-lime);
+}
+
+.music-alternatives a > span {
+  color: var(--neutral-500);
+}
+
+.music-alternatives .music-result-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.music-result-name strong {
+  font-weight: 800;
+}
+
+.analyze-again {
+  margin-top: 9px;
+  padding: 0;
+  border: 0;
+  color: var(--neutral-700);
+  background: transparent;
+  font: 700 0.61rem/1 "Courier New", monospace;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+
+@media (max-width: 520px), (max-height: 620px) {
+  .medicine-workspace {
+    padding: 13px 0 54px;
+  }
+
+  .medicine-capture {
+    height: clamp(150px, 32vh, 220px);
+  }
+
+  .mood-prescription {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .music-primary {
+    width: 100%;
+  }
+}

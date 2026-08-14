@@ -1,0 +1,54 @@
+.record-toggle {
+  position: fixed;
+  z-index: 20;
+  bottom: 16px;
+  left: 18px;
+  height: 34px;
+  width: 36px;
+  padding: 0;
+  border: 1.5px solid var(--ink);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  background: var(--paper);
+  cursor: pointer;
+  opacity: 0.72;
+  transition: color 130ms ease, background 130ms ease, opacity 130ms ease;
+}
+
+.control-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  overflow: visible;
+  color: currentColor;
+  transition: transform 140ms ease;
+}
+
+.control-icon--pill {
+  width: 21px;
+  height: 21px;
+}
+
+.record-toggle:hover,
+.record-toggle:focus-visible,
+.record-toggle[aria-pressed="true"] {
+  color: var(--paper);
+  background: var(--ink);
+  opacity: 1;
+}
+
+.record-toggle:hover .control-icon--pill,
+.record-toggle:focus-visible .control-icon--pill {
+  transform: rotate(7deg);
+}
+
+
+@media (max-width: 520px), (max-height: 620px) {
+  .record-toggle {
+    bottom: 12px;
+    left: 12px;
+  }
+}
