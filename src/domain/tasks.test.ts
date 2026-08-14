@@ -115,10 +115,11 @@ describe("task domain", () => {
     ]);
   });
 
-  it("migrates the previous transparent background preference", () => {
-    expect(normalizeState({ backgroundTransparent: true }).backgroundMode).toBe("clear");
-    expect(normalizeState({ backgroundTransparent: false }).backgroundMode).toBe("solid");
-    expect(normalizeState({ backgroundMode: "glass" }).backgroundMode).toBe("clear");
+  it("accepts only the background modes it knows", () => {
+    expect(normalizeState({ backgroundMode: "clear" }).backgroundMode).toBe("clear");
+    expect(normalizeState({ backgroundMode: "solid" }).backgroundMode).toBe("solid");
+    expect(normalizeState({ backgroundMode: "glass" }).backgroundMode).toBe("solid");
+    expect(normalizeState({}).backgroundMode).toBe("solid");
   });
 
   it("restores the always-on-top preference safely", () => {

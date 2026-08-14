@@ -125,13 +125,12 @@ export function normalizeTasks(value: unknown): Task[] {
   return normalized;
 }
 
+/**
+ * Defends against corrupt or hand-edited data. Older stored shapes are the
+ * migrations' job, so this only has to recognise the current one.
+ */
 export function normalizeState(value: unknown): AppState {
-  const source = value && typeof value === "object"
-    ? (value as Omit<Partial<AppState>, "backgroundMode"> & {
-        backgroundMode?: BackgroundMode | "glass";
-        backgroundTransparent?: boolean;
-      })
-    : {};
+  const source = value && typeof value === "object" ? (value as Partial<AppState>) : {};
   const tasks = normalizeTasks(source.tasks);
   const activeExists = tasks.some(
     (task) => task.id === source.activeTaskId && !task.completed,
@@ -140,11 +139,7 @@ export function normalizeState(value: unknown): AppState {
     .filter((task) => !task.completed)
     .sort((a, b) => getHourPriority(a.hourSlot) - getHourPriority(b.hourSlot))[0];
 
-  const backgroundMode: BackgroundMode = source.backgroundMode === "clear" ||
-    source.backgroundMode === "glass" ||
-    source.backgroundTransparent
-    ? "clear"
-    : "solid";
+  const backgroundMode: BackgroundMode = source.backgroundMode === "clear" ? "clear" : "solid";
 
   return {
     tasks,

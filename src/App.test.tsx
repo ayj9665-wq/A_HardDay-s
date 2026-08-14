@@ -5,8 +5,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 
-vi.mock("./lib/storage", () => ({
-  loadAppState: vi.fn().mockResolvedValue(null),
+vi.mock("./core/persistence", () => ({
+  loadAppState: vi.fn().mockResolvedValue({
+    tasks: [],
+    activeTaskId: null,
+    backgroundMode: "solid",
+    alwaysOnTop: false,
+  }),
   saveAppState: vi.fn().mockResolvedValue(undefined),
 }));
 

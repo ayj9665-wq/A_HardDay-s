@@ -23,11 +23,10 @@ import {
   getHourPriority,
   getNextBackgroundMode,
   getPeriodLabel,
-  normalizeState,
   pickNextActiveTask,
   sanitizeTaskText,
 } from "./domain/tasks";
-import { loadAppState, saveAppState } from "./lib/storage";
+import { loadAppState, saveAppState } from "./core/persistence";
 import { applicationsMatch } from "./core/applications";
 import { SESSION_SAMPLE_INTERVAL_MS, createSessionTracker } from "./core/sessionTracker";
 import { saveCurrentViewAsPng } from "./lib/screenshot";
@@ -58,7 +57,7 @@ export default function App() {
     let mounted = true;
     loadAppState()
       .then((stored) => {
-        if (mounted) setState(normalizeState(stored));
+        if (mounted) setState(stored);
       })
       .finally(() => {
         if (mounted) setHydrated(true);
