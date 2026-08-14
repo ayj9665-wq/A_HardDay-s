@@ -10,7 +10,7 @@ import {
   type ImageLayer,
   type LayerGeometry,
   type LayerPlacement,
-} from "../../domain/imageLayers";
+} from "../../core/imageLayers";
 import { prepareImageLayer } from "../../lib/imageAnalysis";
 
 export type ImageLayersApi = {

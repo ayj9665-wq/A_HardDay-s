@@ -1,4 +1,4 @@
-import type { MoodId } from "../core/moods";
+import type { MoodId } from "./moods";
 
 export type RecommendationTrack = {
   id: string;

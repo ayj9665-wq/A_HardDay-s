@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import { AppError, toAppError } from "../../core/errors";
-import { youtubeMusicSearchUrl } from "../../domain/medicine";
+import { youtubeMusicSearchUrl } from "../../core/medicine";
 import type { CompositeAnalysis } from "../../lib/imageAnalysis";
 import { openYoutubeMusicUrl } from "../../lib/externalLinks";
 import { moodLabel } from "../../ui/moodLabels";

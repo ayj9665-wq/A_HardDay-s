@@ -3,7 +3,7 @@ import tapeOne from "../../Design_sources/tape_01.png";
 import tapeTwo from "../../Design_sources/tape_02.png";
 import { ApplicationIcon } from "./ControlIcons";
 import { AppError } from "../core/errors";
-import { formatTrackedDuration } from "../domain/tasks";
+import { formatTrackedDuration } from "../core/tasks";
 import { CLOCK_HOURS, type ClockHour, type Task } from "../types";
 import { messageForError } from "../ui/messages";
 

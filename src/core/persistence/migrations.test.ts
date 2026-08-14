@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeState } from "../../domain/tasks";
+import { normalizeState } from "../tasks";
 import { MIGRATIONS, migrateToCurrent } from "./migrations";
 import { CURRENT_SCHEMA_VERSION, readEnvelope, writeEnvelope } from "./schema";
 

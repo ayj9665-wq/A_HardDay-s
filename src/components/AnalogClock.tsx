@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { hourToAngle, trackedSecondsToAngle } from "../domain/tasks";
+import { hourToAngle, trackedSecondsToAngle } from "../core/tasks";
 import type { ClockHour } from "../types";
 
 type AnalogClockProps = {

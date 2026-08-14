@@ -1,9 +1,9 @@
 import { AppError } from "../core/errors";
 import { IMAGE_POLICY, isAllowedImageType, isWithinImageSize } from "../core/imagePolicy";
-import type { RecommendationTrack } from "../data/trackCatalog";
-import type { ImageLayer, LayerPlacement } from "../domain/imageLayers";
-import { deriveMood, extractPalette, type MoodProfile, type PaletteColor } from "../domain/medicine";
-import { recommendTracks } from "../domain/trackRecommendations";
+import type { RecommendationTrack } from "../core/trackCatalog";
+import type { ImageLayer, LayerPlacement } from "../core/imageLayers";
+import { deriveMood, extractPalette, type MoodProfile, type PaletteColor } from "../core/medicine";
+import { recommendTracks } from "../core/trackRecommendations";
 
 export type CompositeAnalysis = {
   palette: PaletteColor[];

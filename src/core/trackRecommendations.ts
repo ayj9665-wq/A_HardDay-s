@@ -1,5 +1,5 @@
-import { clamp } from "../core/math";
-import { TRACK_CATALOG, type RecommendationTrack } from "../data/trackCatalog";
+import { clamp } from "./math";
+import { TRACK_CATALOG, type RecommendationTrack } from "./trackCatalog";
 import type { MoodProfile, PaletteColor } from "./medicine";
 
 function hash(value: string) {

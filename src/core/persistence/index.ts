@@ -1,4 +1,4 @@
-import { normalizeState } from "../../domain/tasks";
+import { normalizeState } from "../tasks";
 import { getPlatform } from "../../platform";
 import type { AppState } from "../../types";
 import { migrateToCurrent } from "./migrations";

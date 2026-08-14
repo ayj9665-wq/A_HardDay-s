@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AppError, toAppError } from "../../core/errors";
-import type { ImageLayer } from "../../domain/imageLayers";
+import type { ImageLayer } from "../../core/imageLayers";
 import { analyzeImageLayers, type CompositeAnalysis } from "../../lib/imageAnalysis";
 
 const SETTLE_MS = 180;

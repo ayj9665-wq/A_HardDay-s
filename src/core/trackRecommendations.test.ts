@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MOOD_IDS, type MoodId } from "../core/moods";
-import { TRACK_CATALOG } from "../data/trackCatalog";
+import { MOOD_IDS, type MoodId } from "./moods";
+import { TRACK_CATALOG } from "./trackCatalog";
 import { deriveMood, extractPalette, type MoodProfile } from "./medicine";
 import { recommendTracks } from "./trackRecommendations";
 

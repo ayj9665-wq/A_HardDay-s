@@ -1,6 +1,6 @@
-import { AppError } from "../core/errors";
-import { IMAGE_POLICY, isAllowedImageType, remainingImageSlots } from "../core/imagePolicy";
-import { clamp } from "../core/math";
+import { AppError } from "./errors";
+import { IMAGE_POLICY, isAllowedImageType, remainingImageSlots } from "./imagePolicy";
+import { clamp } from "./math";
 
 /** A placed image on the medicine stage. Positions are percentages of the stage. */
 export type ImageLayer = {

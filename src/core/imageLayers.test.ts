@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGE_POLICY } from "../core/imagePolicy";
+import { IMAGE_POLICY } from "./imagePolicy";
 import {
   LAYER_BOUNDS,
   bringToFront,

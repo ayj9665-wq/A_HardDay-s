@@ -1,4 +1,4 @@
-import type { ImageLayer } from "../../domain/imageLayers";
+import type { ImageLayer } from "../../core/imageLayers";
 
 type LayerEditorProps = {
   layers: ImageLayer[];

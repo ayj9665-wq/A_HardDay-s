@@ -1,4 +1,4 @@
-import { applicationIdentity } from "../core/applications";
+import { applicationIdentity } from "./applications";
 import {
   CLOCK_HOURS,
   type AppState,

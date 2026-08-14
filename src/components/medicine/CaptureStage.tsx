@@ -8,7 +8,7 @@ import {
   type LayerGeometry,
   type LayerPlacement,
   type PointerAction,
-} from "../../domain/imageLayers";
+} from "../../core/imageLayers";
 import { downloadDroppedImage, extractDroppedImageSources } from "../../lib/dropImages";
 
 type CaptureStageProps = {

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { AppError } from "../core/errors";
-import { MAX_TASKS } from "../domain/tasks";
+import { MAX_TASKS } from "../core/tasks";
 import { CLOCK_HOURS, type ClockHour } from "../types";
 import { messageForError } from "../ui/messages";
 

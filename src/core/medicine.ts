@@ -1,5 +1,5 @@
-import { clamp } from "../core/math";
-import type { MoodId } from "../core/moods";
+import { clamp } from "./math";
+import type { MoodId } from "./moods";
 
 export type RgbColor = {
   r: number;

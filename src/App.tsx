@@ -26,7 +26,7 @@ import {
   pickNextActiveTask,
   sanitizeTaskText,
   taskTrackedSeconds,
-} from "./domain/tasks";
+} from "./core/tasks";
 import { loadAppState, saveAppState } from "./core/persistence";
 import { applicationsMatch } from "./core/applications";
 import { SESSION_SAMPLE_INTERVAL_MS, createSessionTracker } from "./core/sessionTracker";
