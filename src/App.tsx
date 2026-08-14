@@ -25,6 +25,7 @@ import {
   getPeriodLabel,
   pickNextActiveTask,
   sanitizeTaskText,
+  taskTrackedSeconds,
 } from "./domain/tasks";
 import { loadAppState, saveAppState } from "./core/persistence";
 import { applicationsMatch } from "./core/applications";
@@ -277,7 +278,7 @@ export default function App() {
       >
         <AnalogClock
           activeHour={activeTask?.hourSlot ?? null}
-          trackedSeconds={activeTask?.trackedSeconds ?? 0}
+          trackedSeconds={activeTask ? taskTrackedSeconds(activeTask) : 0}
           tracking={isTracking}
         />
         <div className="task-ring">

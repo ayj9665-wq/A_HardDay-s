@@ -21,8 +21,8 @@ export type Task = {
   completed: boolean;
   tapeVariant: 1 | 2;
   order: number;
+  /** Work time is credited per application; the task total is derived from these. */
   linkedApplications: LinkedApplication[];
-  trackedSeconds: number;
   createdAt: string;
   updatedAt: string;
 };

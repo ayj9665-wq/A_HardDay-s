@@ -114,9 +114,6 @@ export function normalizeTasks(value: unknown): Task[] {
       tapeVariant: item.tapeVariant === 2 ? 2 : 1,
       order: normalized.length,
       linkedApplications: normalizeLinkedApplications(item.linkedApplications),
-      trackedSeconds: typeof item.trackedSeconds === "number" && Number.isFinite(item.trackedSeconds)
-        ? Math.max(0, item.trackedSeconds)
-        : 0,
       createdAt: typeof item.createdAt === "string" ? item.createdAt : now,
       updatedAt: typeof item.updatedAt === "string" ? item.updatedAt : now,
     });
@@ -165,9 +162,17 @@ export function pickNextActiveTask(
   );
 }
 
+/** A task's work time is the sum of what its applications earned. */
+export function taskTrackedSeconds(task: Pick<Task, "linkedApplications">): number {
+  return task.linkedApplications.reduce(
+    (total, application) => total + application.trackedSeconds,
+    0,
+  );
+}
+
 /**
- * Credits work seconds to a task and to the application that earned them.
- * Both totals are written here and nowhere else, so they cannot drift apart.
+ * Credits work seconds to the application that earned them. The task total is
+ * derived from these, so there is no second figure that could disagree.
  */
 export function addTrackedSeconds(
   state: AppState,
@@ -187,7 +192,6 @@ export function addTrackedSeconds(
     tasks: state.tasks.map((task) => task.id === taskId
       ? {
           ...task,
-          trackedSeconds: task.trackedSeconds + seconds,
           linkedApplications: task.linkedApplications.map((application) =>
             applicationIdentity(application) === identity
               ? { ...application, trackedSeconds: application.trackedSeconds + seconds }
@@ -209,7 +213,6 @@ export function createTask(text: string, hourSlot: ClockHour, order: number): Ta
     tapeVariant: random % 2 === 0 ? 1 : 2,
     order,
     linkedApplications: [],
-    trackedSeconds: 0,
     createdAt: now,
     updatedAt: now,
   };

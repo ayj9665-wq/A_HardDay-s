@@ -12,6 +12,7 @@ import {
   normalizeState,
   pickNextActiveTask,
   sanitizeTaskText,
+  taskTrackedSeconds,
   trackedSecondsToAngle,
 } from "./tasks";
 import type { Task } from "../types";
@@ -25,7 +26,6 @@ function task(overrides: Partial<Task> = {}): Task {
     tapeVariant: overrides.tapeVariant ?? 1,
     order: overrides.order ?? 0,
     linkedApplications: overrides.linkedApplications ?? [],
-    trackedSeconds: overrides.trackedSeconds ?? 0,
     createdAt: overrides.createdAt ?? "2026-01-01T00:00:00.000Z",
     updatedAt: overrides.updatedAt ?? "2026-01-01T00:00:00.000Z",
   };
@@ -98,10 +98,9 @@ describe("task domain", () => {
     expect(state.activeTaskId).toBe("valid");
   });
 
-  it("migrates task tracking fields and removes invalid application links", () => {
+  it("removes duplicate and invalid application links", () => {
     const state = normalizeState({
       tasks: [task({
-        trackedSeconds: 125.5,
         linkedApplications: [
           { name: "Code", processName: "Code.exe", executablePath: "C:\\Code.exe", trackedSeconds: 73 },
           { name: "Duplicate", processName: "Code.exe", executablePath: "c:\\code.exe", trackedSeconds: 0 },
@@ -109,10 +108,27 @@ describe("task domain", () => {
         ],
       })],
     });
-    expect(state.tasks[0].trackedSeconds).toBe(125.5);
+
     expect(state.tasks[0].linkedApplications).toEqual([
       { name: "Code", processName: "Code.exe", executablePath: "C:\\Code.exe", trackedSeconds: 73 },
     ]);
+  });
+
+  it("ignores a task total stored before it became a derived figure", () => {
+    const state = normalizeState({
+      tasks: [{
+        ...task({
+          linkedApplications: [
+            { name: "Code", processName: "Code.exe", executablePath: "C:\\Code.exe", trackedSeconds: 73 },
+          ],
+        }),
+        // Written by an older build that kept its own copy of the total.
+        trackedSeconds: 125.5,
+      }],
+    });
+
+    expect(state.tasks[0]).not.toHaveProperty("trackedSeconds");
+    expect(taskTrackedSeconds(state.tasks[0])).toBe(73);
   });
 
   it("accepts only the background modes it knows", () => {
@@ -151,7 +167,6 @@ describe("tracked seconds", () => {
         executablePath,
         trackedSeconds: 0,
       })),
-      trackedSeconds: 0,
       createdAt: "2026-01-01T00:00:00.000Z",
       updatedAt: "2026-01-01T00:00:00.000Z",
     }],
@@ -161,7 +176,7 @@ describe("tracked seconds", () => {
   });
 
   const totals = (state: AppState) => ({
-    task: state.tasks[0].trackedSeconds,
+    task: taskTrackedSeconds(state.tasks[0]),
     applications: state.tasks[0].linkedApplications.map((one) => one.trackedSeconds),
   });
 
@@ -182,6 +197,24 @@ describe("tracked seconds", () => {
     const next = addTrackedSeconds(state, "task-1", "C:\\Apps\\Figma.exe", 9);
 
     expect(totals(next)).toEqual({ task: 9, applications: [0, 9] });
+  });
+
+  it("drops an application's time along with the link when it is unlinked", () => {
+    const state = addTrackedSeconds(
+      stateWith("C:\\Apps\\Code.exe", "C:\\Apps\\Figma.exe"),
+      "task-1",
+      "C:\\Apps\\Figma.exe",
+      30,
+    );
+    const unlinked = {
+      ...state.tasks[0],
+      linkedApplications: state.tasks[0].linkedApplications.filter(
+        (one) => !one.executablePath.includes("Figma"),
+      ),
+    };
+
+    expect(taskTrackedSeconds(state.tasks[0])).toBe(30);
+    expect(taskTrackedSeconds(unlinked)).toBe(0);
   });
 
   it("keeps the task total equal to the sum of its applications", () => {
