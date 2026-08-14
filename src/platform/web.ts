@@ -42,6 +42,9 @@ export const webPlatform: Platform = {
     async getForeground() {
       return null;
     },
+    async onForegroundChange() {
+      return () => {};
+    },
   },
 
   files: {

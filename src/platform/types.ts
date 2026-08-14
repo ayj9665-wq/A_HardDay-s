@@ -23,6 +23,13 @@ export type ApplicationsAdapter = {
   readonly supported: boolean;
   listRunning(): Promise<RunningApplication[]>;
   getForeground(): Promise<RunningApplication | null>;
+  /**
+   * Calls back when the foreground application changes — not on a timer.
+   * Resolves to the function that stops listening.
+   */
+  onForegroundChange(
+    listener: (application: RunningApplication | null) => void,
+  ): Promise<() => void>;
 };
 
 export type SaveFileRequest = {

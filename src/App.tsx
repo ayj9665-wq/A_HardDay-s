@@ -94,21 +94,27 @@ export default function App() {
 
   useEffect(() => {
     if (!hydrated || !platform.applications.supported) return;
-    let mounted = true;
-    const poll = () => {
-      void platform.applications.getForeground()
-        .then((application) => {
-          if (mounted) setForegroundApplication(application);
-        })
-        .catch(() => {
-          if (mounted) setForegroundApplication(null);
-        });
+    let listening = true;
+    let stopListening: (() => void) | undefined;
+
+    const apply = (application: RunningApplication | null) => {
+      if (listening) setForegroundApplication(application);
     };
-    poll();
-    const timer = window.setInterval(poll, 700);
+
+    // One read for the current state, then the system tells us about changes.
+    void platform.applications.getForeground().then(apply).catch(() => apply(null));
+    void platform.applications.onForegroundChange(apply)
+      .then((unlisten) => {
+        if (listening) stopListening = unlisten;
+        else unlisten();
+      })
+      .catch(() => {
+        // Without the subscription the app still works; it just stops noticing switches.
+      });
+
     return () => {
-      mounted = false;
-      window.clearInterval(timer);
+      listening = false;
+      stopListening?.();
     };
   }, [hydrated, platform]);
 

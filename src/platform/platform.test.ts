@@ -31,6 +31,17 @@ describe("platform selection", () => {
     await expect(platform.window.setAlwaysOnTop(true)).resolves.toBeUndefined();
   });
 
+  it("hands back a working unsubscribe even where nothing can be watched", async () => {
+    const calls: unknown[] = [];
+    const stop = await getPlatform().applications.onForegroundChange((application) => {
+      calls.push(application);
+    });
+
+    expect(typeof stop).toBe("function");
+    expect(() => stop()).not.toThrow();
+    expect(calls).toEqual([]);
+  });
+
   it("round-trips state through browser storage", async () => {
     const platform = getPlatform();
     await platform.storage.write("a-key", { tasks: [] });

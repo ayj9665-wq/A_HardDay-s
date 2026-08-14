@@ -3,6 +3,9 @@ import type { Platform } from "./types";
 
 const STORE_FILE = "a-hard-days.json";
 
+/** Must match FOREGROUND_CHANGED_EVENT in src-tauri/src/lib.rs. */
+const FOREGROUND_CHANGED_EVENT = "application://foreground-changed";
+
 type TauriStore = {
   get<T>(key: string): Promise<T | undefined>;
   set(key: string, value: unknown): Promise<void>;
@@ -56,6 +59,13 @@ export const tauriPlatform: Platform = {
     },
     async getForeground() {
       return invokeCommand<RunningApplication | null>("get_foreground_application");
+    },
+    async onForegroundChange(listener) {
+      const { listen } = await import("@tauri-apps/api/event");
+      return listen<RunningApplication | null>(
+        FOREGROUND_CHANGED_EVENT,
+        (event) => listener(event.payload),
+      );
     },
   },
 
