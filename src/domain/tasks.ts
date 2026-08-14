@@ -1,3 +1,4 @@
+import { applicationIdentity } from "../core/applications";
 import {
   CLOCK_HOURS,
   type AppState,
@@ -167,6 +168,39 @@ export function pickNextActiveTask(
     incomplete[0]?.id ??
     null
   );
+}
+
+/**
+ * Credits work seconds to a task and to the application that earned them.
+ * Both totals are written here and nowhere else, so they cannot drift apart.
+ */
+export function addTrackedSeconds(
+  state: AppState,
+  taskId: string,
+  executablePath: string,
+  seconds: number,
+  now: Date = new Date(),
+): AppState {
+  if (seconds <= 0) return state;
+
+  const identity = applicationIdentity({ executablePath });
+  const target = state.tasks.find((task) => task.id === taskId);
+  if (!target) return state;
+
+  return {
+    ...state,
+    tasks: state.tasks.map((task) => task.id === taskId
+      ? {
+          ...task,
+          trackedSeconds: task.trackedSeconds + seconds,
+          linkedApplications: task.linkedApplications.map((application) =>
+            applicationIdentity(application) === identity
+              ? { ...application, trackedSeconds: application.trackedSeconds + seconds }
+              : application),
+          updatedAt: now.toISOString(),
+        }
+      : task),
+  };
 }
 
 export function createTask(text: string, hourSlot: ClockHour, order: number): Task {

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { AppState } from "../types";
 import {
+  addTrackedSeconds,
   getAvailableHours,
   getDefaultHour,
   formatTrackedDuration,
@@ -130,5 +132,85 @@ describe("task domain", () => {
     expect(getPeriodLabel(new Date(2026, 0, 1, 12, 0))).toBe("noon");
     expect(getPeriodLabel(new Date(2026, 0, 1, 18, 0))).toBe("night");
     expect(getPeriodLabel(new Date(2026, 0, 1, 2, 0))).toBe("night");
+  });
+});
+
+describe("tracked seconds", () => {
+  const stateWith = (...paths: string[]): AppState => ({
+    tasks: [{
+      id: "task-1",
+      text: "Poster",
+      hourSlot: 3,
+      completed: false,
+      tapeVariant: 1,
+      order: 0,
+      linkedApplications: paths.map((executablePath) => ({
+        name: "App",
+        processName: "app.exe",
+        executablePath,
+        trackedSeconds: 0,
+      })),
+      trackedSeconds: 0,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    }],
+    activeTaskId: "task-1",
+    backgroundMode: "solid",
+    alwaysOnTop: false,
+  });
+
+  const totals = (state: AppState) => ({
+    task: state.tasks[0].trackedSeconds,
+    applications: state.tasks[0].linkedApplications.map((one) => one.trackedSeconds),
+  });
+
+  it("credits the task and the application that earned the time", () => {
+    const next = addTrackedSeconds(stateWith("C:\\Apps\\Code.exe"), "task-1", "C:\\Apps\\Code.exe", 12);
+
+    expect(totals(next)).toEqual({ task: 12, applications: [12] });
+  });
+
+  it("matches the application regardless of path casing", () => {
+    const next = addTrackedSeconds(stateWith("C:\\Apps\\Code.exe"), "task-1", "c:\\apps\\CODE.EXE", 7);
+
+    expect(totals(next)).toEqual({ task: 7, applications: [7] });
+  });
+
+  it("credits only the application that was in the foreground", () => {
+    const state = stateWith("C:\\Apps\\Code.exe", "C:\\Apps\\Figma.exe");
+    const next = addTrackedSeconds(state, "task-1", "C:\\Apps\\Figma.exe", 9);
+
+    expect(totals(next)).toEqual({ task: 9, applications: [0, 9] });
+  });
+
+  it("keeps the task total equal to the sum of its applications", () => {
+    let state = stateWith("C:\\Apps\\Code.exe", "C:\\Apps\\Figma.exe");
+    for (const [path, seconds] of [["C:\\Apps\\Code.exe", 5], ["C:\\Apps\\Figma.exe", 8], ["C:\\Apps\\Code.exe", 3]] as const) {
+      state = addTrackedSeconds(state, "task-1", path, seconds);
+    }
+
+    const { task, applications } = totals(state);
+    expect(task).toBe(applications.reduce((sum, one) => sum + one, 0));
+    expect(task).toBe(16);
+  });
+
+  it("leaves state untouched for an unknown task or an empty interval", () => {
+    const state = stateWith("C:\\Apps\\Code.exe");
+
+    expect(addTrackedSeconds(state, "missing", "C:\\Apps\\Code.exe", 5)).toBe(state);
+    expect(addTrackedSeconds(state, "task-1", "C:\\Apps\\Code.exe", 0)).toBe(state);
+    expect(addTrackedSeconds(state, "task-1", "C:\\Apps\\Code.exe", -3)).toBe(state);
+  });
+
+  it("stamps the task as updated when time lands on it", () => {
+    const next = addTrackedSeconds(
+      stateWith("C:\\Apps\\Code.exe"),
+      "task-1",
+      "C:\\Apps\\Code.exe",
+      4,
+      new Date("2026-08-14T09:30:00.000Z"),
+    );
+
+    expect(next.tasks[0].updatedAt).toBe("2026-08-14T09:30:00.000Z");
   });
 });

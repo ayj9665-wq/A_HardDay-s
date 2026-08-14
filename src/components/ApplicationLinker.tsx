@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppError, toAppError } from "../core/errors";
-import { applicationIdentity, applicationsMatch } from "../lib/appTracking";
+import { applicationIdentity, applicationsMatch } from "../core/applications";
 import { getPlatform } from "../platform";
 import type { LinkedApplication, RunningApplication, Task } from "../types";
 import { messageForError } from "../ui/messages";

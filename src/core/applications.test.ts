@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applicationIdentity, applicationsMatch } from "./appTracking";
+import { applicationIdentity, applicationsMatch } from "./applications";
 
 const code = {
   name: "Code",

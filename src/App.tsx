@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnalogClock } from "./components/AnalogClock";
 import { ApplicationLinker } from "./components/ApplicationLinker";
 import {
@@ -17,6 +17,7 @@ import { TodoComposer } from "./components/TodoComposer";
 import { WindowChrome } from "./components/WindowChrome";
 import {
   MAX_TASKS,
+  addTrackedSeconds,
   createTask,
   getDefaultHour,
   getHourPriority,
@@ -27,7 +28,8 @@ import {
   sanitizeTaskText,
 } from "./domain/tasks";
 import { loadAppState, saveAppState } from "./lib/storage";
-import { applicationsMatch } from "./lib/appTracking";
+import { applicationsMatch } from "./core/applications";
+import { SESSION_SAMPLE_INTERVAL_MS, createSessionTracker } from "./core/sessionTracker";
 import { saveCurrentViewAsPng } from "./lib/screenshot";
 import { getPlatform } from "./platform";
 import type { AppState, ClockHour, LinkedApplication, RunningApplication } from "./types";
@@ -143,53 +145,22 @@ export default function App() {
   const activeApplicationPath = activeLinkedApplication?.executablePath ?? null;
   const isTracking = activeLinkedApplication !== null;
 
-  const addTrackedSeconds = useCallback((
-    taskId: string,
-    executablePath: string,
-    seconds: number,
-  ) => {
-    if (seconds <= 0) return;
-    setState((current) => ({
-      ...current,
-      tasks: current.tasks.map((task) => task.id === taskId
-        ? {
-            ...task,
-            trackedSeconds: task.trackedSeconds + seconds,
-            linkedApplications: task.linkedApplications.map((application) =>
-              application.executablePath.toLocaleLowerCase() === executablePath.toLocaleLowerCase()
-                ? { ...application, trackedSeconds: application.trackedSeconds + seconds }
-                : application),
-            updatedAt: new Date().toISOString(),
-          }
-        : task),
-    }));
-  }, []);
-
   useEffect(() => {
     const taskId = activeTask?.id;
     if (!taskId || !activeApplicationPath) return;
 
-    let lastSample = performance.now();
-    let pendingSeconds = 0;
-    const sample = () => {
-      const now = performance.now();
-      pendingSeconds += Math.min((now - lastSample) / 1_000, 1.5);
-      lastSample = now;
-      if (pendingSeconds >= 5) {
-        addTrackedSeconds(taskId, activeApplicationPath, pendingSeconds);
-        pendingSeconds = 0;
-      }
+    const tracker = createSessionTracker();
+    const commit = (seconds: number) => {
+      if (seconds <= 0) return;
+      setState((current) => addTrackedSeconds(current, taskId, activeApplicationPath, seconds));
     };
-    const timer = window.setInterval(sample, 500);
+    const timer = window.setInterval(() => commit(tracker.sample()), SESSION_SAMPLE_INTERVAL_MS);
 
     return () => {
       window.clearInterval(timer);
-      sample();
-      if (pendingSeconds >= 0.05) {
-        addTrackedSeconds(taskId, activeApplicationPath, pendingSeconds);
-      }
+      commit(tracker.stop());
     };
-  }, [activeApplicationPath, activeTask?.id, addTrackedSeconds]);
+  }, [activeApplicationPath, activeTask?.id]);
 
   const addTask = (text: string, hourSlot: ClockHour): AppError | null => {
     const cleanText = sanitizeTaskText(text);
