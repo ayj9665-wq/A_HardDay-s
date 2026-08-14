@@ -58,4 +58,11 @@ describe("AnalogClock", () => {
     runFrame();
     expect(taskHand.getAttribute("transform")).toBe("rotate(60 180 180)");
   });
+
+  it("offsets the task hand using accumulated work at hour-hand speed", () => {
+    const { container } = render(<AnalogClock activeHour={2} trackedSeconds={3_600} />);
+    runFrame();
+    const taskHand = container.querySelector<SVGLineElement>(".clock-hand--second")!;
+    expect(taskHand.getAttribute("transform")).toBe("rotate(90 180 180)");
+  });
 });

@@ -1,12 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { MAX_TASKS } from "../domain/tasks";
+import { AppError } from "../core/errors";
+import { MAX_TASKS } from "../core/tasks";
 import { CLOCK_HOURS, type ClockHour } from "../types";
+import { messageForError } from "../ui/messages";
 
 type TodoComposerProps = {
   taskCount: number;
   occupiedHours: Set<ClockHour>;
   defaultHour: ClockHour | null;
-  onAdd: (text: string, hourSlot: ClockHour) => string | null;
+  onAdd: (text: string, hourSlot: ClockHour) => AppError | null;
 };
 
 export function TodoComposer({
@@ -17,7 +19,7 @@ export function TodoComposer({
 }: TodoComposerProps) {
   const [text, setText] = useState("");
   const [hourSlot, setHourSlot] = useState<ClockHour | null>(defaultHour);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<AppError | null>(null);
   const isFull = taskCount >= MAX_TASKS;
 
   useEffect(() => {
@@ -27,7 +29,7 @@ export function TodoComposer({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     if (hourSlot === null) {
-      setError("Please select a time slot.");
+      setError(new AppError("TASK_HOUR_MISSING"));
       return;
     }
     const validationError = onAdd(text, hourSlot);
@@ -36,7 +38,7 @@ export function TodoComposer({
       return;
     }
     setText("");
-    setError("");
+    setError(null);
   };
 
   return (
@@ -54,14 +56,14 @@ export function TodoComposer({
           placeholder={isFull ? "You can add up to 6 tasks" : "Enter a task"}
           onChange={(event) => {
             setText(event.target.value);
-            if (error) setError("");
+            if (error) setError(null);
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter" && event.nativeEvent.isComposing) event.preventDefault();
           }}
         />
         <button className="add-button" type="submit" disabled={isFull || hourSlot === null}>
-          Add
+          ADD
         </button>
       </div>
       <fieldset className="hour-picker" disabled={isFull}>
@@ -86,7 +88,9 @@ export function TodoComposer({
         </div>
       </fieldset>
       <p className={error ? "composer-message composer-message--error" : "composer-message"} role="status">
-        {error || (isFull ? "Delete an existing task to add a new one." : "Press Enter to add a task.")}
+        {error
+          ? messageForError(error)
+          : (isFull ? "Delete an existing task to add a new one." : "Press Enter to add a task.")}
       </p>
     </form>
   );

@@ -1,0 +1,10 @@
+/* Import order is the cascade order. Keep it: rules of equal specificity are
+   resolved by the order they appear here. */
+@import "./base.css";
+@import "./shell.css";
+@import "./clock.css";
+@import "./record-toggle.css";
+@import "./medicine.css";
+@import "./controls.css";
+@import "./linker.css";
+@import "./composer.css";

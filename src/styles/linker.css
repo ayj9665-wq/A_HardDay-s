@@ -1,0 +1,161 @@
+.application-linker-overlay {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--paper-78);
+}
+
+.application-linker {
+  width: min(520px, calc(100vw - 48px));
+  max-height: min(650px, calc(100vh - 48px));
+  padding: 20px;
+  border: 2px solid var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--ink);
+  background: var(--paper);
+  box-shadow: 10px 10px 0 var(--ink);
+}
+
+.application-linker > header,
+.application-linker > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.application-linker > header span,
+.application-linker > footer span {
+  font: 700 0.65rem/1 "Courier New", monospace;
+  letter-spacing: 0.08em;
+}
+
+.application-linker h2 {
+  max-width: 410px;
+  margin: 4px 0 0;
+  overflow: hidden;
+  font: 800 1.8rem/0.95 "Arial Narrow", Arial, sans-serif;
+  letter-spacing: -0.05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.application-linker-close,
+.application-linker footer button {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 11px;
+  border: 1.5px solid var(--ink);
+  border-radius: 7px;
+  color: var(--ink);
+  background: var(--paper);
+  font: 800 0.68rem/1 "Courier New", monospace;
+  cursor: pointer;
+}
+
+.application-linker-close {
+  padding: 0;
+  font-size: 1.4rem;
+}
+
+.application-linker-close:hover,
+.application-linker footer button:hover,
+.application-save {
+  color: var(--paper) !important;
+  background: var(--ink) !important;
+}
+
+.application-list {
+  min-height: 120px;
+  max-height: 360px;
+  border-block: 1.5px solid var(--ink);
+  overflow-y: auto;
+}
+
+.application-list-message {
+  margin: 0;
+  padding: 28px 10px;
+  color: var(--neutral-500);
+  font: 700 0.68rem/1.3 "Courier New", monospace;
+  text-align: center;
+}
+
+.application-option {
+  min-height: 54px;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--neutral-300);
+  display: grid;
+  grid-template-columns: 19px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.application-option:last-child {
+  border-bottom: 0;
+}
+
+.application-option:hover {
+  background: var(--white);
+}
+
+.application-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.application-option-mark {
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  background: transparent;
+}
+
+.application-option input:checked + .application-option-mark {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 4px var(--paper);
+}
+
+.application-option-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.application-option-copy strong,
+.application-option-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.application-option-copy strong {
+  font: 800 0.83rem/1 "Courier New", monospace;
+}
+
+.application-option-copy small {
+  color: var(--neutral-600);
+  font: 500 0.61rem/1 "Courier New", monospace;
+}
+
+.application-option > b {
+  padding: 4px 6px;
+  border-radius: 7px;
+  background: var(--accent-green);
+  font: 800 0.58rem/1 "Courier New", monospace;
+}
+
+.application-linker-error {
+  margin: -5px 0 0;
+  color: var(--alert);
+  font: 700 0.65rem/1.25 "Courier New", monospace;
+}
+

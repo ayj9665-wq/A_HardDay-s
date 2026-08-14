@@ -1,38 +1,64 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnalogClock } from "./components/AnalogClock";
+import { ApplicationLinker } from "./components/ApplicationLinker";
+import {
+  AddTaskIcon,
+  BackgroundIcon,
+  BackIcon,
+  CloseIcon,
+  PinIcon,
+  PillIcon,
+  SnapshotIcon,
+} from "./components/ControlIcons";
+import { MedicineView } from "./components/MedicineView";
+import { AppError } from "./core/errors";
 import { TaskCard } from "./components/TaskCard";
 import { TodoComposer } from "./components/TodoComposer";
+import { WindowChrome } from "./components/WindowChrome";
 import {
   MAX_TASKS,
+  addTrackedSeconds,
   createTask,
   getDefaultHour,
   getHourPriority,
   getNextBackgroundMode,
   getPeriodLabel,
-  normalizeState,
   pickNextActiveTask,
   sanitizeTaskText,
-} from "./domain/tasks";
-import { loadAppState, saveAppState } from "./lib/storage";
-import type { AppState, ClockHour } from "./types";
+  taskTrackedSeconds,
+} from "./core/tasks";
+import { loadAppState, saveAppState } from "./core/persistence";
+import { applicationsMatch } from "./core/applications";
+import { SESSION_SAMPLE_INTERVAL_MS, createSessionTracker } from "./core/sessionTracker";
+import { saveCurrentViewAsPng } from "./lib/screenshot";
+import { getPlatform } from "./platform";
+import type { AppState, ClockHour, LinkedApplication, RunningApplication } from "./types";
 
 const EMPTY_STATE: AppState = {
   tasks: [],
   activeTaskId: null,
   backgroundMode: "solid",
+  alwaysOnTop: false,
 };
 
 export default function App() {
+  const platform = getPlatform();
+  const appShellRef = useRef<HTMLElement>(null);
   const [state, setState] = useState<AppState>(EMPTY_STATE);
   const [hydrated, setHydrated] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [period, setPeriod] = useState(() => getPeriodLabel(new Date()));
+  const [view, setView] = useState<"clock" | "medicine">("clock");
+  const [linkingTaskId, setLinkingTaskId] = useState<string | null>(null);
+  const [foregroundApplication, setForegroundApplication] = useState<RunningApplication | null>(null);
+  const [savingScreenshot, setSavingScreenshot] = useState(false);
+  const [screenshotStatus, setScreenshotStatus] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
     loadAppState()
       .then((stored) => {
-        if (mounted) setState(normalizeState(stored));
+        if (mounted) setState(stored);
       })
       .finally(() => {
         if (mounted) setHydrated(true);
@@ -56,48 +82,11 @@ export default function App() {
   }, [state.backgroundMode]);
 
   useEffect(() => {
-    if (!window.__TAURI_INTERNALS__) return;
-    let cancelled = false;
-    let timer: number | undefined;
-    let decorated: boolean | null = null;
-
-    void import("@tauri-apps/api/window").then(({ cursorPosition, getCurrentWindow }) => {
-      const appWindow = getCurrentWindow();
-
-      const pollWindowHover = async () => {
-        try {
-          const [cursor, position, size] = await Promise.all([
-            cursorPosition(),
-            appWindow.outerPosition(),
-            appWindow.outerSize(),
-          ]);
-          const cursorIsInside =
-            cursor.x >= position.x &&
-            cursor.x <= position.x + size.width &&
-            cursor.y >= position.y &&
-            cursor.y <= position.y + size.height;
-
-          if (cursorIsInside !== decorated) {
-            decorated = cursorIsInside;
-            const contentSize = await appWindow.innerSize();
-            await appWindow.setDecorations(cursorIsInside);
-            await appWindow.setSize(contentSize);
-          }
-        } catch {
-          // Keep the app usable if a platform does not support dynamic decorations.
-        } finally {
-          if (!cancelled) timer = window.setTimeout(pollWindowHover, 120);
-        }
-      };
-
-      void pollWindowHover();
+    if (!hydrated || !platform.window.supported) return;
+    void platform.window.setAlwaysOnTop(state.alwaysOnTop).catch(() => {
+      // Keep the rest of the app usable if the platform rejects this window level.
     });
-
-    return () => {
-      cancelled = true;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, []);
+  }, [hydrated, platform, state.alwaysOnTop]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setPeriod(getPeriodLabel(new Date())), 30_000);
@@ -105,15 +94,41 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!hydrated || !platform.applications.supported) return;
+    let listening = true;
+    let stopListening: (() => void) | undefined;
+
+    const apply = (application: RunningApplication | null) => {
+      if (listening) setForegroundApplication(application);
+    };
+
+    // One read for the current state, then the system tells us about changes.
+    void platform.applications.getForeground().then(apply).catch(() => apply(null));
+    void platform.applications.onForegroundChange(apply)
+      .then((unlisten) => {
+        if (listening) stopListening = unlisten;
+        else unlisten();
+      })
+      .catch(() => {
+        // Without the subscription the app still works; it just stops noticing switches.
+      });
+
+    return () => {
+      listening = false;
+      stopListening?.();
+    };
+  }, [hydrated, platform]);
+
+  useEffect(() => {
     const openComposer = (event: globalThis.KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
+      if (view === "clock" && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         setComposerOpen(true);
       }
     };
     window.addEventListener("keydown", openComposer);
     return () => window.removeEventListener("keydown", openComposer);
-  }, []);
+  }, [view]);
 
   const occupiedHours = useMemo(
     () => new Set(state.tasks.map((task) => task.hourSlot)),
@@ -129,12 +144,35 @@ export default function App() {
   const activeTask = state.tasks.find(
     (task) => task.id === state.activeTaskId && !task.completed,
   );
+  const linkingTask = state.tasks.find((task) => task.id === linkingTaskId) ?? null;
+  const activeLinkedApplication = activeTask?.linkedApplications.find(
+    (application) => applicationsMatch(application, foregroundApplication),
+  ) ?? null;
+  const activeApplicationPath = activeLinkedApplication?.executablePath ?? null;
+  const isTracking = activeLinkedApplication !== null;
 
-  const addTask = (text: string, hourSlot: ClockHour): string | null => {
+  useEffect(() => {
+    const taskId = activeTask?.id;
+    if (!taskId || !activeApplicationPath) return;
+
+    const tracker = createSessionTracker();
+    const commit = (seconds: number) => {
+      if (seconds <= 0) return;
+      setState((current) => addTrackedSeconds(current, taskId, activeApplicationPath, seconds));
+    };
+    const timer = window.setInterval(() => commit(tracker.sample()), SESSION_SAMPLE_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(timer);
+      commit(tracker.stop());
+    };
+  }, [activeApplicationPath, activeTask?.id]);
+
+  const addTask = (text: string, hourSlot: ClockHour): AppError | null => {
     const cleanText = sanitizeTaskText(text);
-    if (!cleanText) return "A task cannot be empty.";
-    if (state.tasks.length >= MAX_TASKS) return "You can add up to 6 tasks.";
-    if (occupiedHours.has(hourSlot)) return `${hourSlot}'o is already occupied.`;
+    if (!cleanText) return new AppError("TASK_TEXT_EMPTY");
+    if (state.tasks.length >= MAX_TASKS) return new AppError("TASK_LIMIT_REACHED", { max: MAX_TASKS });
+    if (occupiedHours.has(hourSlot)) return new AppError("TASK_HOUR_TAKEN", { hour: hourSlot });
 
     const task = createTask(cleanText, hourSlot, state.tasks.length);
     setState((current) => ({
@@ -145,11 +183,11 @@ export default function App() {
     return null;
   };
 
-  const updateTask = (id: string, text: string, hourSlot: ClockHour): string | null => {
+  const updateTask = (id: string, text: string, hourSlot: ClockHour): AppError | null => {
     const cleanText = sanitizeTaskText(text);
-    if (!cleanText) return "A task cannot be empty.";
+    if (!cleanText) return new AppError("TASK_TEXT_EMPTY");
     if (state.tasks.some((task) => task.id !== id && task.hourSlot === hourSlot)) {
-      return `${hourSlot}'o is already occupied.`;
+      return new AppError("TASK_HOUR_TAKEN", { hour: hourSlot });
     }
     setState((current) => ({
       ...current,
@@ -206,24 +244,43 @@ export default function App() {
     });
   };
 
+  const saveLinkedApplications = (applications: LinkedApplication[]) => {
+    if (!linkingTaskId) return;
+    setState((current) => ({
+      ...current,
+      tasks: current.tasks.map((task) => task.id === linkingTaskId
+        ? { ...task, linkedApplications: applications, updatedAt: new Date().toISOString() }
+        : task),
+    }));
+    setLinkingTaskId(null);
+  };
+
   if (!hydrated) {
     return <div className="app-loading">A Hard Day's</div>;
   }
 
   return (
-    <main className={`app-shell app-shell--${state.backgroundMode}`}>
-      <header className="app-header" data-tauri-drag-region>
-        <h1 data-tauri-drag-region>A Hard Day's <span data-tauri-drag-region>{period}</span></h1>
+    <main ref={appShellRef} className={`app-shell app-shell--${state.backgroundMode} app-shell--${view}`}>
+      <WindowChrome />
+      <header className="app-header">
+        <h1 data-tauri-drag-region>
+          A Hard Day's <span data-tauri-drag-region>{view === "medicine" ? "medicine" : period}</span>
+        </h1>
       </header>
 
       <section
-        className="clock-workspace"
+        className="clock-workspace app-view"
         aria-label="Task clock"
+        hidden={view !== "clock"}
         onDoubleClick={(event) => {
           if (event.target === event.currentTarget) setComposerOpen(true);
         }}
       >
-        <AnalogClock activeHour={activeTask?.hourSlot ?? null} />
+        <AnalogClock
+          activeHour={activeTask?.hourSlot ?? null}
+          trackedSeconds={activeTask ? taskTrackedSeconds(activeTask) : 0}
+          tracking={isTracking}
+        />
         <div className="task-ring">
           {state.tasks.map((task) => (
             <TaskCard
@@ -231,10 +288,12 @@ export default function App() {
               task={task}
               index={clockwiseTasks.findIndex((clockwiseTask) => clockwiseTask.id === task.id)}
               active={task.id === state.activeTaskId}
+              applicationActive={task.id === state.activeTaskId && isTracking}
               occupiedHours={occupiedHours}
               onActivate={activateTask}
               onToggle={toggleTask}
               onDelete={deleteTask}
+              onManageApplications={setLinkingTaskId}
               onUpdate={updateTask}
             />
           ))}
@@ -243,31 +302,95 @@ export default function App() {
           <p className="empty-state">ADD YOUR FIRST TASK</p>
         )}
       </section>
+      <MedicineView hidden={view !== "medicine"} />
+
+      <button
+        type="button"
+        className="record-toggle"
+        aria-pressed={view === "medicine"}
+        aria-label={view === "medicine" ? "Back to clock" : "Open medicine"}
+        title={view === "medicine" ? "Back to clock" : "Open medicine"}
+        onClick={() => {
+          setComposerOpen(false);
+          setView((current) => current === "clock" ? "medicine" : "clock");
+        }}
+      >
+        {view === "medicine" ? <BackIcon /> : <PillIcon />}
+      </button>
 
       <div className="manage-controls">
+        <button
+          type="button"
+          className="snapshot-toggle"
+          data-screenshot-ignore
+          disabled={savingScreenshot}
+          aria-label="Save current view as PNG"
+          title="Save current view as PNG"
+          onClick={() => {
+            const shell = appShellRef.current;
+            if (!shell || savingScreenshot) return;
+            setSavingScreenshot(true);
+            setScreenshotStatus(null);
+            void saveCurrentViewAsPng(shell, view, state.backgroundMode === "clear")
+              .then((saved) => {
+                if (!saved) return;
+                setScreenshotStatus("PNG SAVED");
+                window.setTimeout(() => setScreenshotStatus(null), 1_800);
+              })
+              .catch(() => {
+                setScreenshotStatus("PNG SAVE FAILED");
+                window.setTimeout(() => setScreenshotStatus(null), 2_400);
+              })
+              .finally(() => setSavingScreenshot(false));
+          }}
+        >
+          <SnapshotIcon saving={savingScreenshot} />
+        </button>
+        <button
+          type="button"
+          className="pin-toggle"
+          aria-pressed={state.alwaysOnTop}
+          aria-label={state.alwaysOnTop ? "Disable always on top" : "Keep window always on top"}
+          title={state.alwaysOnTop ? "Always on top: On" : "Always on top: Off"}
+          onClick={() => setState((current) => ({
+            ...current,
+            alwaysOnTop: !current.alwaysOnTop,
+          }))}
+        >
+          <PinIcon active={state.alwaysOnTop} />
+        </button>
         <button
           type="button"
           className="background-toggle"
           data-mode={state.backgroundMode}
           aria-label={`Current background: ${state.backgroundMode}. Switch mode`}
-          title="Switch background: SOLID → CLEAR"
+          title={`Background: ${state.backgroundMode}. Click to switch`}
           onClick={() => setState((current) => ({
             ...current,
             backgroundMode: getNextBackgroundMode(current.backgroundMode),
           }))}
         >
-          BG {state.backgroundMode.toUpperCase()}
+          <BackgroundIcon mode={state.backgroundMode} />
         </button>
-        <button
-          type="button"
-          className="manage-toggle"
-          aria-expanded={composerOpen}
-          title="Manage tasks (Ctrl+N)"
-          onClick={() => setComposerOpen((open) => !open)}
-        >
-          {composerOpen ? "CLOSE" : "+ TASK"}
-        </button>
+        {view === "clock" && (
+          <button
+            type="button"
+            className="manage-toggle"
+            aria-expanded={composerOpen}
+            aria-label={composerOpen ? "Close task manager" : "Add task"}
+            title={composerOpen ? "Close task manager" : "Add task (Ctrl+N)"}
+            onClick={() => setComposerOpen((open) => !open)}
+          >
+            {composerOpen ? <CloseIcon /> : <AddTaskIcon />}
+          </button>
+        )}
       </div>
+
+      {screenshotStatus && (
+        <div className="screenshot-status" data-screenshot-ignore role="status">
+          {screenshotStatus}
+        </div>
+      )}
 
       {composerOpen && (
         <div className="composer-overlay" onMouseDown={(event) => {
@@ -280,6 +403,15 @@ export default function App() {
             onAdd={addTask}
           />
         </div>
+      )}
+
+      {linkingTask && (
+        <ApplicationLinker
+          task={linkingTask}
+          foregroundApplication={foregroundApplication}
+          onSave={saveLinkedApplications}
+          onClose={() => setLinkingTaskId(null)}
+        />
       )}
     </main>
   );
