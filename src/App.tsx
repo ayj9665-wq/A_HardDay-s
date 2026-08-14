@@ -11,6 +11,7 @@ import {
   SnapshotIcon,
 } from "./components/ControlIcons";
 import { MedicineView } from "./components/MedicineView";
+import { AppError } from "./core/errors";
 import { TaskCard } from "./components/TaskCard";
 import { TodoComposer } from "./components/TodoComposer";
 import { WindowChrome } from "./components/WindowChrome";
@@ -26,8 +27,9 @@ import {
   sanitizeTaskText,
 } from "./domain/tasks";
 import { loadAppState, saveAppState } from "./lib/storage";
-import { applicationsMatch, getForegroundApplication } from "./lib/appTracking";
+import { applicationsMatch } from "./lib/appTracking";
 import { saveCurrentViewAsPng } from "./lib/screenshot";
+import { getPlatform } from "./platform";
 import type { AppState, ClockHour, LinkedApplication, RunningApplication } from "./types";
 
 const EMPTY_STATE: AppState = {
@@ -38,6 +40,7 @@ const EMPTY_STATE: AppState = {
 };
 
 export default function App() {
+  const platform = getPlatform();
   const appShellRef = useRef<HTMLElement>(null);
   const [state, setState] = useState<AppState>(EMPTY_STATE);
   const [hydrated, setHydrated] = useState(false);
@@ -77,13 +80,11 @@ export default function App() {
   }, [state.backgroundMode]);
 
   useEffect(() => {
-    if (!hydrated || !window.__TAURI_INTERNALS__) return;
-    void import("@tauri-apps/api/window")
-      .then(({ getCurrentWindow }) => getCurrentWindow().setAlwaysOnTop(state.alwaysOnTop))
-      .catch(() => {
-        // Keep the rest of the app usable if the platform rejects this window level.
-      });
-  }, [hydrated, state.alwaysOnTop]);
+    if (!hydrated || !platform.window.supported) return;
+    void platform.window.setAlwaysOnTop(state.alwaysOnTop).catch(() => {
+      // Keep the rest of the app usable if the platform rejects this window level.
+    });
+  }, [hydrated, platform, state.alwaysOnTop]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setPeriod(getPeriodLabel(new Date())), 30_000);
@@ -91,10 +92,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || !window.__TAURI_INTERNALS__) return;
+    if (!hydrated || !platform.applications.supported) return;
     let mounted = true;
     const poll = () => {
-      void getForegroundApplication()
+      void platform.applications.getForeground()
         .then((application) => {
           if (mounted) setForegroundApplication(application);
         })
@@ -108,7 +109,7 @@ export default function App() {
       mounted = false;
       window.clearInterval(timer);
     };
-  }, [hydrated]);
+  }, [hydrated, platform]);
 
   useEffect(() => {
     const openComposer = (event: globalThis.KeyboardEvent) => {
@@ -190,11 +191,11 @@ export default function App() {
     };
   }, [activeApplicationPath, activeTask?.id, addTrackedSeconds]);
 
-  const addTask = (text: string, hourSlot: ClockHour): string | null => {
+  const addTask = (text: string, hourSlot: ClockHour): AppError | null => {
     const cleanText = sanitizeTaskText(text);
-    if (!cleanText) return "A task cannot be empty.";
-    if (state.tasks.length >= MAX_TASKS) return "You can add up to 6 tasks.";
-    if (occupiedHours.has(hourSlot)) return `${hourSlot}'o is already occupied.`;
+    if (!cleanText) return new AppError("TASK_TEXT_EMPTY");
+    if (state.tasks.length >= MAX_TASKS) return new AppError("TASK_LIMIT_REACHED", { max: MAX_TASKS });
+    if (occupiedHours.has(hourSlot)) return new AppError("TASK_HOUR_TAKEN", { hour: hourSlot });
 
     const task = createTask(cleanText, hourSlot, state.tasks.length);
     setState((current) => ({
@@ -205,11 +206,11 @@ export default function App() {
     return null;
   };
 
-  const updateTask = (id: string, text: string, hourSlot: ClockHour): string | null => {
+  const updateTask = (id: string, text: string, hourSlot: ClockHour): AppError | null => {
     const cleanText = sanitizeTaskText(text);
-    if (!cleanText) return "A task cannot be empty.";
+    if (!cleanText) return new AppError("TASK_TEXT_EMPTY");
     if (state.tasks.some((task) => task.id !== id && task.hourSlot === hourSlot)) {
-      return `${hourSlot}'o is already occupied.`;
+      return new AppError("TASK_HOUR_TAKEN", { hour: hourSlot });
     }
     setState((current) => ({
       ...current,

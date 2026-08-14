@@ -3,6 +3,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TodoComposer } from "./TodoComposer";
+import { AppError } from "../core/errors";
 import type { ClockHour } from "../types";
 
 afterEach(cleanup);
@@ -32,11 +33,11 @@ describe("TodoComposer", () => {
         taskCount={0}
         occupiedHours={new Set<ClockHour>()}
         defaultHour={12}
-        onAdd={() => "A task cannot be empty."}
+        onAdd={() => new AppError("TASK_TEXT_EMPTY")}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByRole("button", { name: "ADD" }));
     expect(screen.getByRole("status").textContent).toContain("A task cannot be empty.");
   });
 

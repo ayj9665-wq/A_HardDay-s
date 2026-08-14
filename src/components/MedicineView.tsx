@@ -8,6 +8,14 @@ import {
   type DragEvent,
   type PointerEvent,
 } from "react";
+import { AppError, toAppError } from "../core/errors";
+import {
+  IMAGE_ACCEPT_ATTRIBUTE,
+  IMAGE_POLICY,
+  isAllowedImageType,
+  remainingImageSlots,
+} from "../core/imagePolicy";
+import { clamp } from "../core/math";
 import { youtubeMusicSearchUrl } from "../domain/medicine";
 import {
   analyzeImageLayers,
@@ -18,8 +26,8 @@ import {
 } from "../lib/imageAnalysis";
 import { downloadDroppedImage, extractDroppedImageSources } from "../lib/dropImages";
 import { openYoutubeMusicUrl } from "../lib/externalLinks";
-
-const MAX_IMAGES = 10;
+import { messageForError } from "../ui/messages";
+import { moodLabel } from "../ui/moodLabels";
 
 type MedicineViewProps = {
   hidden?: boolean;
@@ -36,9 +44,6 @@ type PointerAction = {
   startWidth: number;
 };
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value));
-
 export function MedicineView({ hidden = false }: MedicineViewProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -50,7 +55,7 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
   const [analysis, setAnalysis] = useState<CompositeAnalysis | null>(null);
   const [draggingFiles, setDraggingFiles] = useState(false);
   const [importingImage, setImportingImage] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AppError | null>(null);
   const [copiedHex, setCopiedHex] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,14 +63,14 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
   }, [layers]);
 
   const addFiles = useCallback(async (files: File[], placement?: LayerPlacement) => {
-    const images = files.filter((file) => file.type.startsWith("image/"));
-    const available = MAX_IMAGES - layersRef.current.length;
+    const images = files.filter((file) => isAllowedImageType(file.type));
+    const available = remainingImageSlots(layersRef.current.length);
     if (images.length === 0) {
-      setError("DROP PNG, JPG, WEBP, OR GIF IMAGES.");
+      setError(new AppError("IMAGE_UNSUPPORTED_TYPE"));
       return;
     }
-    if (available <= 0) {
-      setError(`YOU CAN PLACE UP TO ${MAX_IMAGES} IMAGES.`);
+    if (available === 0) {
+      setError(new AppError("IMAGE_LIMIT_REACHED", { max: IMAGE_POLICY.maxImages }));
       return;
     }
 
@@ -85,9 +90,12 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
       setSelectedId(successful[successful.length - 1].id);
     }
     if (failed?.status === "rejected") {
-      setError(failed.reason instanceof Error ? failed.reason.message : "AN IMAGE COULD NOT BE READ.");
+      setError(toAppError(failed.reason, "IMAGE_UNREADABLE"));
     } else if (images.length > available) {
-      setError(`ONLY THE FIRST ${available} IMAGES WERE ADDED. MAX ${MAX_IMAGES}.`);
+      setError(new AppError("IMAGE_LIMIT_TRUNCATED", {
+        added: available,
+        max: IMAGE_POLICY.maxImages,
+      }));
     }
   }, []);
 
@@ -122,7 +130,7 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
         })
         .catch((caught) => {
           if (request !== analysisRequestRef.current) return;
-          setError(caught instanceof Error ? caught.message : "COLOR ANALYSIS FAILED.");
+          setError(toAppError(caught, "ANALYSIS_FAILED"));
         });
     }, 180);
 
@@ -199,13 +207,13 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
     } : undefined;
     const sources = extractDroppedImageSources(event.dataTransfer);
     if (sources.length === 0) {
-      setError("DROP A JPG OR PNG IMAGE, NOT A WEB PAGE.");
+      setError(new AppError("DROP_NOT_AN_IMAGE"));
       return;
     }
 
-    const available = MAX_IMAGES - layersRef.current.length;
-    if (available <= 0) {
-      setError(`YOU CAN PLACE UP TO ${MAX_IMAGES} IMAGES.`);
+    const available = remainingImageSlots(layersRef.current.length);
+    if (available === 0) {
+      setError(new AppError("IMAGE_LIMIT_REACHED", { max: IMAGE_POLICY.maxImages }));
       return;
     }
     const accepted = sources.slice(0, available);
@@ -230,7 +238,7 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
       if (downloadedFiles.length > 0) await addFiles(downloadedFiles, placement);
       const failure = downloads.find((result) => result.status === "rejected");
       if (failure?.status === "rejected") {
-        setError(failure.reason instanceof Error ? failure.reason.message : "IMAGE IMPORT FAILED.");
+        setError(toAppError(failure.reason, "IMAGE_IMPORT_FAILED"));
       }
     } finally {
       setImportingImage(false);
@@ -288,14 +296,14 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
       setCopiedHex(hex);
       window.setTimeout(() => setCopiedHex((current) => current === hex ? null : current), 1_400);
     } catch {
-      setError(`COPY FAILED. COLOR: ${hex}`);
+      setError(new AppError("CLIPBOARD_COPY_FAILED", { hex }));
     }
   };
 
   const openMusic = (url: string) => {
     setError(null);
-    void openYoutubeMusicUrl(url).catch(() => {
-      setError("YOUTUBE MUSIC COULD NOT BE OPENED.");
+    void openYoutubeMusicUrl(url).catch((caught) => {
+      setError(toAppError(caught, "MUSIC_OPEN_FAILED"));
     });
   };
 
@@ -378,7 +386,7 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
           className="sr-only"
           type="file"
           multiple
-          accept="image/png,image/jpeg,image/webp,image/gif"
+          accept={IMAGE_ACCEPT_ATTRIBUTE}
           onChange={(event) => {
             void addFiles([...(event.target.files ?? [])]);
             event.target.value = "";
@@ -397,7 +405,11 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
         </div>
       )}
 
-      {error && <p className="medicine-status medicine-status--error" role="alert">{error}</p>}
+      {error && (
+        <p className="medicine-status medicine-status--error" role="alert">
+          {messageForError(error)}
+        </p>
+      )}
 
       {analysis && layers.length > 0 && (
         <div className="medicine-result">
@@ -420,7 +432,7 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
           <div className="mood-prescription">
             <div>
               <span className="prescription-label">COLOR PRESCRIPTION</span>
-              <h2>{analysis.mood.name}</h2>
+              <h2>{moodLabel(analysis.mood.id)}</h2>
               <p>{analysis.mood.tags.join(" · ")}</p>
             </div>
             <a

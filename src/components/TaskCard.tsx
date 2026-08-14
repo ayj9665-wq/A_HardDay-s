@@ -2,8 +2,10 @@ import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import tapeOne from "../../Design_sources/tape_01.png";
 import tapeTwo from "../../Design_sources/tape_02.png";
 import { ApplicationIcon } from "./ControlIcons";
+import { AppError } from "../core/errors";
 import { formatTrackedDuration } from "../domain/tasks";
 import { CLOCK_HOURS, type ClockHour, type Task } from "../types";
+import { messageForError } from "../ui/messages";
 
 type TaskCardProps = {
   task: Task;
@@ -15,7 +17,7 @@ type TaskCardProps = {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onManageApplications: (id: string) => void;
-  onUpdate: (id: string, text: string, hourSlot: ClockHour) => string | null;
+  onUpdate: (id: string, text: string, hourSlot: ClockHour) => AppError | null;
 };
 
 export function TaskCard({
@@ -33,7 +35,7 @@ export function TaskCard({
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(task.text);
   const [hourSlot, setHourSlot] = useState<ClockHour>(task.hourSlot);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<AppError | null>(null);
 
   useEffect(() => {
     setText(task.text);
@@ -59,14 +61,14 @@ export function TaskCard({
       setError(validationError);
       return;
     }
-    setError("");
+    setError(null);
     setEditing(false);
   };
 
   const cancelEdit = () => {
     setText(task.text);
     setHourSlot(task.hourSlot);
-    setError("");
+    setError(null);
     setEditing(false);
   };
 
@@ -129,10 +131,10 @@ export function TaskCard({
               ))}
             </select>
             <div className="task-edit-actions">
-              <button type="submit">Save</button>
-              <button type="button" onClick={cancelEdit}>Cancel</button>
+              <button type="submit">SAVE</button>
+              <button type="button" onClick={cancelEdit}>CANCEL</button>
             </div>
-            {error && <span className="task-edit-error">{error}</span>}
+            {error && <span className="task-edit-error">{messageForError(error)}</span>}
           </form>
         ) : (
           <button

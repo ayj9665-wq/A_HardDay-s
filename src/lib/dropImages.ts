@@ -1,14 +1,9 @@
+import { AppError } from "../core/errors";
+import { IMAGE_POLICY, isAllowedImageType, isWithinImageSize } from "../core/imagePolicy";
+
 export type DroppedImageSource =
   | { kind: "file"; file: File }
   | { kind: "url"; url: string };
-
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
-const ALLOWED_IMAGE_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-]);
 
 function isSupportedUrl(value: string) {
   try {
@@ -51,7 +46,7 @@ export function parseImageUrlsFromHtml(html: string): string[] {
 
 export function extractDroppedImageSources(dataTransfer: DataTransfer): DroppedImageSource[] {
   const files = [...dataTransfer.files]
-    .filter((file) => file.type.startsWith("image/"))
+    .filter((file) => isAllowedImageType(file.type))
     .map((file) => ({ kind: "file" as const, file }));
   if (files.length > 0) return files;
 
@@ -65,7 +60,7 @@ export function extractDroppedImageSources(dataTransfer: DataTransfer): DroppedI
 }
 
 export async function downloadDroppedImage(url: string): Promise<File> {
-  if (!isSupportedUrl(url)) throw new Error("THE DROPPED URL IS NOT A SUPPORTED IMAGE.");
+  if (!isSupportedUrl(url)) throw new AppError("DOWNLOAD_UNSUPPORTED_URL");
 
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 8_000);
@@ -76,27 +71,31 @@ export async function downloadDroppedImage(url: string): Promise<File> {
       redirect: "follow",
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`IMAGE DOWNLOAD FAILED (${response.status}).`);
+    if (!response.ok) throw new AppError("DOWNLOAD_FAILED", { status: response.status });
 
     const declaredLength = Number(response.headers.get("content-length") ?? 0);
-    if (declaredLength > MAX_IMAGE_BYTES) throw new Error("IMAGE MUST BE SMALLER THAN 20 MB.");
+    if (!isWithinImageSize(declaredLength)) {
+      throw new AppError("IMAGE_TOO_LARGE", { limitBytes: IMAGE_POLICY.maxBytes });
+    }
 
     const blob = await response.blob();
     const contentType = (blob.type || response.headers.get("content-type") || "")
       .split(";", 1)[0]
       .toLowerCase();
-    if (!ALLOWED_IMAGE_TYPES.has(contentType)) {
-      throw new Error("THE DROPPED URL DID NOT RETURN A JPG OR PNG IMAGE.");
+    if (!isAllowedImageType(contentType)) {
+      throw new AppError("DOWNLOAD_NOT_AN_IMAGE");
     }
-    if (blob.size > MAX_IMAGE_BYTES) throw new Error("IMAGE MUST BE SMALLER THAN 20 MB.");
+    if (!isWithinImageSize(blob.size)) {
+      throw new AppError("IMAGE_TOO_LARGE", { limitBytes: IMAGE_POLICY.maxBytes });
+    }
 
     return new File([blob], fileNameFromUrl(url, contentType), { type: contentType });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("IMAGE DOWNLOAD TIMED OUT.");
+      throw new AppError("DOWNLOAD_TIMED_OUT");
     }
     if (error instanceof TypeError) {
-      throw new Error("THIS WEBSITE BLOCKED IMAGE IMPORT. TRY COPY AND PASTE.");
+      throw new AppError("DOWNLOAD_BLOCKED");
     }
     throw error;
   } finally {

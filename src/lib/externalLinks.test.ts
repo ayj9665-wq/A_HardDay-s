@@ -22,7 +22,9 @@ describe("external music links", () => {
     expect(open).toHaveBeenCalledWith(url, "_blank", "noopener,noreferrer");
   });
 
-  it("rejects URLs outside the configured domain", async () => {
-    await expect(openYoutubeMusicUrl("https://example.com")).rejects.toThrow("UNSUPPORTED MUSIC URL");
+  it("rejects URLs outside the configured domain with a typed code", async () => {
+    await expect(openYoutubeMusicUrl("https://example.com")).rejects.toMatchObject({
+      code: "MUSIC_URL_UNSUPPORTED",
+    });
   });
 });

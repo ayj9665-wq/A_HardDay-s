@@ -1,3 +1,6 @@
+import { AppError } from "../core/errors";
+import { getPlatform } from "../platform";
+
 const YOUTUBE_MUSIC_ORIGIN = "https://music.youtube.com";
 
 export function isYoutubeMusicUrl(value: string): boolean {
@@ -10,13 +13,6 @@ export function isYoutubeMusicUrl(value: string): boolean {
 }
 
 export async function openYoutubeMusicUrl(value: string): Promise<void> {
-  if (!isYoutubeMusicUrl(value)) throw new Error("UNSUPPORTED MUSIC URL.");
-
-  if (window.__TAURI_INTERNALS__) {
-    const { openUrl } = await import("@tauri-apps/plugin-opener");
-    await openUrl(value);
-    return;
-  }
-
-  window.open(value, "_blank", "noopener,noreferrer");
+  if (!isYoutubeMusicUrl(value)) throw new AppError("MUSIC_URL_UNSUPPORTED");
+  await getPlatform().shell.openExternal(value);
 }

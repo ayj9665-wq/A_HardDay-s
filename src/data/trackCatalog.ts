@@ -1,9 +1,11 @@
+import type { MoodId } from "../core/moods";
+
 export type RecommendationTrack = {
   id: string;
   title: string;
   artist: string;
   genres: string[];
-  moods: string[];
+  moods: MoodId[];
   energy: number;
   lightness: number;
   warmth: number;
@@ -17,7 +19,7 @@ const track = (
   title: string,
   artist: string,
   genres: string[],
-  moods: string[],
+  moods: MoodId[],
   energy: number,
   lightness: number,
   warmth: number,

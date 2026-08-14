@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { applicationIdentity, applicationsMatch, listRunningApplications } from "../lib/appTracking";
+import { AppError, toAppError } from "../core/errors";
+import { applicationIdentity, applicationsMatch } from "../lib/appTracking";
+import { getPlatform } from "../platform";
 import type { LinkedApplication, RunningApplication, Task } from "../types";
+import { messageForError } from "../ui/messages";
 
 type ApplicationLinkerProps = {
   task: Task;
@@ -15,18 +18,20 @@ export function ApplicationLinker({
   onSave,
   onClose,
 }: ApplicationLinkerProps) {
+  const applicationsAdapter = getPlatform().applications;
   const [running, setRunning] = useState<RunningApplication[]>([]);
   const [selected, setSelected] = useState<LinkedApplication[]>(task.linkedApplications);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(applicationsAdapter.supported);
+  const [error, setError] = useState<AppError | null>(null);
 
   const refresh = async () => {
+    if (!applicationsAdapter.supported) return;
     setLoading(true);
-    setError("");
+    setError(null);
     try {
-      setRunning(await listRunningApplications());
-    } catch {
-      setError("RUNNING APPLICATIONS COULD NOT BE READ.");
+      setRunning(await applicationsAdapter.listRunning());
+    } catch (caught) {
+      setError(toAppError(caught, "APPLICATIONS_UNREADABLE"));
     } finally {
       setLoading(false);
     }
@@ -76,8 +81,13 @@ export function ApplicationLinker({
         </header>
 
         <div className="application-list" aria-live="polite">
+          {!applicationsAdapter.supported && (
+            <p className="application-list-message">
+              APPLICATION TRACKING RUNS IN THE DESKTOP APP ONLY.
+            </p>
+          )}
           {loading && <p className="application-list-message">SCANNING OPEN WINDOWS...</p>}
-          {!loading && applications.length === 0 && (
+          {applicationsAdapter.supported && !loading && applications.length === 0 && (
             <p className="application-list-message">NO OTHER OPEN APPLICATIONS FOUND.</p>
           )}
           {applications.map((application) => {
@@ -98,10 +108,19 @@ export function ApplicationLinker({
           })}
         </div>
 
-        {error && <p className="application-linker-error" role="alert">{error}</p>}
+        {error && (
+          <p className="application-linker-error" role="alert">{messageForError(error)}</p>
+        )}
 
         <footer>
-          <button type="button" className="application-refresh" onClick={() => void refresh()}>REFRESH</button>
+          <button
+            type="button"
+            className="application-refresh"
+            disabled={!applicationsAdapter.supported}
+            onClick={() => void refresh()}
+          >
+            REFRESH
+          </button>
           <span>{selected.length} LINKED</span>
           <button type="button" className="application-save" onClick={() => onSave(selected)}>SAVE</button>
         </footer>

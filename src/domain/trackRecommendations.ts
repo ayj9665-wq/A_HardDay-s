@@ -1,7 +1,6 @@
+import { clamp } from "../core/math";
 import { TRACK_CATALOG, type RecommendationTrack } from "../data/trackCatalog";
 import type { MoodProfile, PaletteColor } from "./medicine";
-
-const clamp = (value: number) => Math.min(1, Math.max(0, value));
 
 function hash(value: string) {
   let result = 2166136261;
@@ -10,10 +9,6 @@ function hash(value: string) {
     result = Math.imul(result, 16777619);
   }
   return result >>> 0;
-}
-
-function moodKey(name: string) {
-  return name.toLowerCase().replaceAll(" ", "-");
 }
 
 function paletteSeed(palette: PaletteColor[]) {
@@ -27,8 +22,7 @@ function similarity(first: number, second: number, range = 1) {
 }
 
 function trackScore(track: RecommendationTrack, mood: MoodProfile, seed: string) {
-  const prescription = moodKey(mood.name);
-  const moodAffinity = track.moods.includes(prescription)
+  const moodAffinity = track.moods.includes(mood.id)
     ? 1
     : track.moods.includes("clear-focus") || track.moods.includes("open-prescription")
       ? .62
@@ -53,7 +47,7 @@ export function recommendTracks(
 ): RecommendationTrack[] {
   if (limit <= 0) return [];
 
-  const seed = paletteSeed(palette) || mood.name;
+  const seed = paletteSeed(palette) || mood.id;
   const ranked = [...TRACK_CATALOG].sort((first, second) => {
     const difference = trackScore(second, mood, seed) - trackScore(first, mood, seed);
     return difference || first.id.localeCompare(second.id);

@@ -1,3 +1,5 @@
+import { AppError } from "../core/errors";
+import { IMAGE_POLICY, isAllowedImageType, isWithinImageSize } from "../core/imagePolicy";
 import type { RecommendationTrack } from "../data/trackCatalog";
 import { deriveMood, extractPalette, type MoodProfile, type PaletteColor } from "../domain/medicine";
 import { recommendTracks } from "../domain/trackRecommendations";
@@ -24,7 +26,6 @@ export type LayerPlacement = {
   y: number;
 };
 
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const ANALYSIS_WIDTH = 560;
 const ANALYSIS_HEIGHT = 310;
 
@@ -33,11 +34,11 @@ export async function prepareImageLayer(
   index = 0,
   placement?: LayerPlacement,
 ): Promise<ImageLayer> {
-  if (!file.type.startsWith("image/")) {
-    throw new Error("DROP PNG, JPG, WEBP, OR GIF IMAGES.");
+  if (!isAllowedImageType(file.type)) {
+    throw new AppError("IMAGE_UNSUPPORTED_TYPE");
   }
-  if (file.size > MAX_IMAGE_BYTES) {
-    throw new Error("EACH IMAGE MUST BE SMALLER THAN 20 MB.");
+  if (!isWithinImageSize(file.size)) {
+    throw new AppError("IMAGE_TOO_LARGE", { limitBytes: IMAGE_POLICY.maxBytes });
   }
 
   const previewUrl = URL.createObjectURL(file);
@@ -73,7 +74,7 @@ export async function analyzeImageLayers(layers: ImageLayer[]): Promise<Composit
   canvas.width = ANALYSIS_WIDTH;
   canvas.height = ANALYSIS_HEIGHT;
   const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) throw new Error("COLOR ANALYSIS IS NOT AVAILABLE.");
+  if (!context) throw new AppError("ANALYSIS_UNAVAILABLE");
 
   layers.forEach((layer, index) => {
     const width = layer.width / 100 * ANALYSIS_WIDTH;
@@ -84,7 +85,7 @@ export async function analyzeImageLayers(layers: ImageLayer[]): Promise<Composit
   });
 
   const palette = extractPalette(context.getImageData(0, 0, ANALYSIS_WIDTH, ANALYSIS_HEIGHT));
-  if (palette.length === 0) throw new Error("NO VISIBLE COLORS FOUND.");
+  if (palette.length === 0) throw new AppError("ANALYSIS_NO_COLORS");
   const mood = deriveMood(palette);
   return { palette, mood, recommendedTracks: recommendTracks(mood, palette) };
 }
@@ -93,7 +94,7 @@ function loadImage(source: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("AN IMAGE COULD NOT BE READ."));
+    image.onerror = () => reject(new AppError("IMAGE_UNREADABLE"));
     image.src = source;
   });
 }

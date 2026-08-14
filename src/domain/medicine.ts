@@ -1,3 +1,6 @@
+import { clamp } from "../core/math";
+import type { MoodId } from "../core/moods";
+
 export type RgbColor = {
   r: number;
   g: number;
@@ -13,7 +16,7 @@ export type PaletteColor = RgbColor & {
 };
 
 export type MoodProfile = {
-  name: string;
+  id: MoodId;
   tags: string[];
   searchQueries: string[];
   lightness: number;
@@ -35,9 +38,6 @@ type ColorBucket = {
   green: number;
   blue: number;
 };
-
-const clamp = (value: number, min = 0, max = 1) =>
-  Math.min(max, Math.max(min, value));
 
 function rgbToHsl({ r, g, b }: RgbColor) {
   const red = r / 255;
@@ -159,7 +159,7 @@ function relativeLuminance(color: RgbColor) {
 export function deriveMood(palette: PaletteColor[]): MoodProfile {
   if (palette.length === 0) {
     return {
-      name: "OPEN PRESCRIPTION",
+      id: "open-prescription",
       tags: ["NEUTRAL", "STEADY", "FOCUSED"],
       searchQueries: ["focused instrumental mix", "minimal ambient work playlist"],
       lightness: 0.5,
@@ -187,31 +187,31 @@ export function deriveMood(palette: PaletteColor[]): MoodProfile {
   const energyTag = energy > 0.62 ? "ENERGETIC" : energy < 0.34 ? "QUIET" : "STEADY";
   const colorTag = saturation > 0.58 ? "VIVID" : saturation < 0.2 ? "MUTED" : "SOFT COLOR";
 
-  let name = "CLEAR FOCUS";
+  let id: MoodId = "clear-focus";
   let genre = "minimal electronic focus";
   if (lightness < 0.34 && energy < 0.52) {
-    name = "MIDNIGHT FOCUS";
+    id = "midnight-focus";
     genre = "late night ambient slowcore";
   } else if (lightness < 0.42 && energy >= 0.52) {
-    name = "DARK CURRENT";
+    id = "dark-current";
     genre = "dark electronic trip hop";
   } else if (warmth > 0.15 && energy < 0.55) {
-    name = "GOLDEN PAUSE";
+    id = "golden-pause";
     genre = "warm vinyl jazz bossa nova";
   } else if (warmth > 0.12 && energy >= 0.55) {
-    name = "SUNLIT MOTION";
+    id = "sunlit-motion";
     genre = "upbeat indie pop morning";
   } else if (warmth < -0.12 && energy < 0.52) {
-    name = "BLUE HOUR";
+    id = "blue-hour";
     genre = "dream pop ambient nocturnal";
   } else if (energy > 0.64) {
-    name = "COLOR RUSH";
+    id = "color-rush";
     genre = "energetic indie funk playlist";
   }
 
   const pace = energy > 0.62 ? "high energy" : energy < 0.34 ? "calm" : "steady";
   return {
-    name,
+    id,
     tags: [lightTag, temperatureTag, energyTag, colorTag],
     searchQueries: [
       `${genre} playlist`,
