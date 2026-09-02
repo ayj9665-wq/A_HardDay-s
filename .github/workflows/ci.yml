@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push makes the run in flight pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Never cancel the other operating system: comparing the two is the point.
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Type-check and build the frontend
+        run: npm run build
+
+      # rustup honours src-tauri/rust-toolchain.toml, so every step below runs
+      # from there rather than passing --manifest-path from the root.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Lint the Rust side
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      # The real link step, without the packaging that needs signing secrets.
+      - name: Build the desktop app
+        run: npm run tauri build -- --no-bundle

@@ -80,7 +80,8 @@ pub fn list_running() -> Vec<RunningApplication> {
         .iter()
         .filter_map(|application| describe(&application))
         .collect();
-    applications.sort_by(|first, second| first.name.to_lowercase().cmp(&second.name.to_lowercase()));
+    applications
+        .sort_by(|first, second| first.name.to_lowercase().cmp(&second.name.to_lowercase()));
     applications
 }
 
