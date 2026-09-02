@@ -19,8 +19,12 @@ export type StorageAdapter = {
 };
 
 export type ApplicationsAdapter = {
-  /** False when the runtime cannot inspect other windows at all. */
-  readonly supported: boolean;
+  /**
+   * Resolves false where nothing can be inspected: a browser tab, or a desktop
+   * build for an OS with no implementation. The UI words that differently from
+   * "found nothing running", so the two must stay distinguishable.
+   */
+  isSupported(): Promise<boolean>;
   listRunning(): Promise<RunningApplication[]>;
   getForeground(): Promise<RunningApplication | null>;
   /**

@@ -192,6 +192,13 @@ describe("tracked seconds", () => {
     expect(totals(next)).toEqual({ task: 7, applications: [7] });
   });
 
+  it("credits a macOS bundle path the same way", () => {
+    const state = stateWith("/Applications/Safari.app", "/Applications/Figma.app");
+    const next = addTrackedSeconds(state, "task-1", "/Applications/Figma.app", 11);
+
+    expect(totals(next)).toEqual({ task: 11, applications: [0, 11] });
+  });
+
   it("credits only the application that was in the foreground", () => {
     const state = stateWith("C:\\Apps\\Code.exe", "C:\\Apps\\Figma.exe");
     const next = addTrackedSeconds(state, "task-1", "C:\\Apps\\Figma.exe", 9);

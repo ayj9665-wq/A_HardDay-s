@@ -18,18 +18,21 @@ export function ApplicationLinker({
   onSave,
   onClose,
 }: ApplicationLinkerProps) {
-  const applicationsAdapter = getPlatform().applications;
+  const platform = getPlatform();
   const [running, setRunning] = useState<RunningApplication[]>([]);
   const [selected, setSelected] = useState<LinkedApplication[]>(task.linkedApplications);
-  const [loading, setLoading] = useState(applicationsAdapter.supported);
+  const [supported, setSupported] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<AppError | null>(null);
 
   const refresh = async () => {
-    if (!applicationsAdapter.supported) return;
     setLoading(true);
     setError(null);
     try {
-      setRunning(await applicationsAdapter.listRunning());
+      // Whether this OS has an implementation at all, before asking it anything.
+      const available = await platform.applications.isSupported();
+      setSupported(available);
+      setRunning(available ? await platform.applications.listRunning() : []);
     } catch (caught) {
       setError(toAppError(caught, "APPLICATIONS_UNREADABLE"));
     } finally {
@@ -49,7 +52,7 @@ export function ApplicationLinker({
   const applications = useMemo(() => {
     const entries = new Map<string, RunningApplication>();
     task.linkedApplications.forEach((application) => {
-      entries.set(applicationIdentity(application), { ...application, windowTitle: "NOT RUNNING" });
+      entries.set(applicationIdentity(application), { ...application, detail: "NOT RUNNING" });
     });
     running.forEach((application) => entries.set(applicationIdentity(application), application));
     return [...entries.values()];
@@ -81,13 +84,15 @@ export function ApplicationLinker({
         </header>
 
         <div className="application-list" aria-live="polite">
-          {!applicationsAdapter.supported && (
+          {loading && <p className="application-list-message">SCANNING OPEN WINDOWS...</p>}
+          {!loading && !supported && (
             <p className="application-list-message">
-              APPLICATION TRACKING RUNS IN THE DESKTOP APP ONLY.
+              {platform.kind === "web"
+                ? "APPLICATION TRACKING RUNS IN THE DESKTOP APP ONLY."
+                : "APPLICATION TRACKING IS NOT AVAILABLE ON THIS OPERATING SYSTEM."}
             </p>
           )}
-          {loading && <p className="application-list-message">SCANNING OPEN WINDOWS...</p>}
-          {applicationsAdapter.supported && !loading && applications.length === 0 && (
+          {!loading && supported && applications.length === 0 && (
             <p className="application-list-message">NO OTHER OPEN APPLICATIONS FOUND.</p>
           )}
           {applications.map((application) => {
@@ -100,7 +105,7 @@ export function ApplicationLinker({
                 <span className="application-option-mark" aria-hidden="true" />
                 <span className="application-option-copy">
                   <strong>{application.name}</strong>
-                  <small title={application.windowTitle}>{application.windowTitle}</small>
+                  <small title={application.detail}>{application.detail}</small>
                 </span>
                 {active && <b>ACTIVE</b>}
               </label>
@@ -116,7 +121,7 @@ export function ApplicationLinker({
           <button
             type="button"
             className="application-refresh"
-            disabled={!applicationsAdapter.supported}
+            disabled={!supported}
             onClick={() => void refresh()}
           >
             REFRESH

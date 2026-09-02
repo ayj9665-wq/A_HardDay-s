@@ -31,6 +31,7 @@ import { loadAppState, saveAppState } from "./core/persistence";
 import { applicationsMatch } from "./core/applications";
 import { SESSION_SAMPLE_INTERVAL_MS, createSessionTracker } from "./core/sessionTracker";
 import { saveCurrentViewAsPng } from "./lib/screenshot";
+import { modifierLabel } from "./ui/shortcuts";
 import { getPlatform } from "./platform";
 import type { AppState, ClockHour, LinkedApplication, RunningApplication } from "./types";
 
@@ -94,7 +95,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!hydrated || !platform.applications.supported) return;
+    if (!hydrated) return;
     let listening = true;
     let stopListening: (() => void) | undefined;
 
@@ -378,7 +379,7 @@ export default function App() {
             className="manage-toggle"
             aria-expanded={composerOpen}
             aria-label={composerOpen ? "Close task manager" : "Add task"}
-            title={composerOpen ? "Close task manager" : "Add task (Ctrl+N)"}
+            title={composerOpen ? "Close task manager" : `Add task (${modifierLabel()}+N)`}
             onClick={() => setComposerOpen((open) => !open)}
           >
             {composerOpen ? <CloseIcon /> : <AddTaskIcon />}

@@ -24,7 +24,7 @@ describe("platform selection", () => {
   it("reports desktop-only capabilities as unsupported instead of failing", async () => {
     const platform = getPlatform();
 
-    expect(platform.applications.supported).toBe(false);
+    await expect(platform.applications.isSupported()).resolves.toBe(false);
     expect(platform.window.supported).toBe(false);
     await expect(platform.applications.listRunning()).resolves.toEqual([]);
     await expect(platform.applications.getForeground()).resolves.toBeNull();

@@ -35,7 +35,9 @@ export const webPlatform: Platform = {
   },
 
   applications: {
-    supported: false,
+    async isSupported() {
+      return false;
+    },
     async listRunning() {
       return [];
     },

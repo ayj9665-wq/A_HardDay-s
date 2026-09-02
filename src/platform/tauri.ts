@@ -13,6 +13,8 @@ type TauriStore = {
 };
 
 let storePromise: Promise<TauriStore> | null = null;
+/** Asked once: whether this OS build implements application detection. */
+let supportedPromise: Promise<boolean> | null = null;
 
 function getStore(): Promise<TauriStore> {
   if (!storePromise) {
@@ -53,7 +55,13 @@ export const tauriPlatform: Platform = {
   },
 
   applications: {
-    supported: true,
+    isSupported() {
+      if (!supportedPromise) {
+        supportedPromise = invokeCommand<boolean>("application_tracking_supported")
+          .catch(() => false);
+      }
+      return supportedPromise;
+    },
     async listRunning() {
       return invokeCommand<RunningApplication[]>("list_running_applications");
     },
