@@ -38,13 +38,13 @@ function normalizeLinkedApplications(value: unknown): LinkedApplication[] {
       : "";
     const processName = typeof source.processName === "string" ? source.processName.trim() : "";
     if (!executablePath || !processName) continue;
-    const identity = executablePath.toLocaleLowerCase();
+    const identity = applicationIdentity({ executablePath });
     if (seen.has(identity)) continue;
     seen.add(identity);
     applications.push({
       name: typeof source.name === "string" && source.name.trim()
         ? source.name.trim()
-        : processName.replace(/\.exe$/i, ""),
+        : processName.replace(/\.(exe|app)$/i, ""),
       processName,
       executablePath,
       trackedSeconds: typeof source.trackedSeconds === "number" && Number.isFinite(source.trackedSeconds)

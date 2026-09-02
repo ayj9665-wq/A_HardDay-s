@@ -41,6 +41,13 @@ describe("application tracking", () => {
     })).toBe(false);
   });
 
+  it("folds case without asking the host locale", () => {
+    // A Turkish locale folds "I" to a dotless letter, which would quietly stop
+    // an application from matching itself.
+    expect(applicationIdentity({ executablePath: "C:\\Apps\\IDEA.exe" }))
+      .toBe("c:\\apps\\idea.exe");
+  });
+
   it("does not match a different or missing foreground application", () => {
     expect(applicationsMatch(code, null)).toBe(false);
     expect(applicationsMatch(code, {
