@@ -14,36 +14,56 @@
 
 날씨, 위치 권한, 비 효과, 흐린 창문 및 표면 텍스처는 포함하지 않습니다.
 
+## 사전 요구 사항
+
+공통으로 필요한 것:
+
+- Node.js 20.19 이상 (`.nvmrc`가 권장 버전을 지정합니다)
+- Rust 툴체인 — [rustup](https://rustup.rs)으로 설치합니다. 데스크톱 실행에만 필요하며, 브라우저 미리보기와 테스트에는 필요하지 않습니다.
+
+### Windows
+
+- [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) — "Desktop development with C++" 워크로드
+- WebView2 런타임 — Windows 11에는 기본 탑재되어 있고, Windows 10에서는 [별도 설치](https://developer.microsoft.com/microsoft-edge/webview2/)가 필요할 수 있습니다.
+
+### macOS
+
+- Xcode Command Line Tools
+
+  ```sh
+  xcode-select --install
+  ```
+
+rustup 설치 직후에는 `cargo`가 PATH에 잡히지 않을 수 있습니다. 새 터미널을 열거나 셸 프로필을 다시 읽으세요.
+
 ## 프런트엔드 실행
 
-```powershell
-npm.cmd install
-npm.cmd run dev
+```sh
+npm install
+npm run dev
 ```
 
-브라우저에서 `http://localhost:1420`을 엽니다. 브라우저 미리보기에서는 데이터가 `localStorage`에 저장됩니다.
+브라우저에서 `http://localhost:1420`을 엽니다. 브라우저 미리보기에서는 데이터가 `localStorage`에 저장되고, 앱 추적과 창 제어 같은 데스크톱 전용 기능은 "미지원"으로 표시됩니다.
 
 ## 테스트와 빌드
 
-```powershell
-npm.cmd test
-npm.cmd run build
+```sh
+npm test
+npm run build
 ```
 
 ## 데스크톱 실행
 
-Rust와 운영체제별 Tauri 사전 요구 사항을 설치한 뒤 실행합니다.
-
-```powershell
-$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
-npm.cmd run tauri dev
+```sh
+npm run tauri dev
 ```
 
 Tauri 앱에서는 데이터가 앱 전용 Store 파일에 저장됩니다.
 
 릴리스 실행 파일만 생성하려면 다음 명령을 사용합니다.
 
-```powershell
-$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
-npm.cmd run tauri build -- --no-bundle
+```sh
+npm run tauri build -- --no-bundle
 ```
+
+설치 패키지까지 만들려면 `--no-bundle`을 빼고 실행합니다. **OS별 빌드는 반드시 해당 OS에서 수행해야 합니다** — Windows 설치 파일은 Windows에서, macOS `.app`/`.dmg`는 macOS에서만 만들 수 있습니다.
