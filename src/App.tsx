@@ -396,7 +396,7 @@ export default function App() {
             className="manage-toggle"
             aria-expanded={composerOpen}
             aria-label={composerOpen ? "Close task manager" : "Add task"}
-            title={composerOpen ? "Close task manager" : `Add task (${modifierLabel()}+N)`}
+            title={composerOpen ? "Close task manager" : `Add task (${modifierLabel(platform.os)}+N)`}
             onClick={() => setComposerOpen((open) => !open)}
           >
             {composerOpen ? <CloseIcon /> : <AddTaskIcon />}

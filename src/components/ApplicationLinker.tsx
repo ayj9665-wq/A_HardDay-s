@@ -84,7 +84,7 @@ export function ApplicationLinker({
         </header>
 
         <div className="application-list" aria-live="polite">
-          {loading && <p className="application-list-message">SCANNING OPEN WINDOWS...</p>}
+          {loading && <p className="application-list-message">SCANNING RUNNING APPLICATIONS...</p>}
           {!loading && !supported && (
             <p className="application-list-message">
               {platform.kind === "web"
@@ -92,7 +92,7 @@ export function ApplicationLinker({
                 : "APPLICATION TRACKING IS NOT AVAILABLE ON THIS OPERATING SYSTEM."}
             </p>
           )}
-          {!loading && supported && applications.length === 0 && (
+          {!loading && !error && supported && applications.length === 0 && (
             <p className="application-list-message">NO OTHER OPEN APPLICATIONS FOUND.</p>
           )}
           {applications.map((application) => {
