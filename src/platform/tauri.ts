@@ -1,3 +1,4 @@
+import { detectOperatingSystem } from "./os";
 import type { RunningApplication } from "../types";
 import type { Platform } from "./types";
 
@@ -41,6 +42,9 @@ async function currentWindow() {
  */
 export const tauriPlatform: Platform = {
   kind: "desktop",
+  get os() {
+    return detectOperatingSystem();
+  },
 
   storage: {
     async read(key) {

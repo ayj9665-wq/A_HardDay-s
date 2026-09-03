@@ -1,4 +1,5 @@
 import type { RunningApplication } from "../types";
+import type { OperatingSystem } from "./os";
 
 /**
  * The contract every runtime must satisfy. Feature code depends on this shape
@@ -6,6 +7,8 @@ import type { RunningApplication } from "../types";
  */
 export type Platform = {
   readonly kind: "desktop" | "web";
+  /** Which system the app is on. `kind` answers a different question: which runtime. */
+  readonly os: OperatingSystem;
   readonly storage: StorageAdapter;
   readonly applications: ApplicationsAdapter;
   readonly files: FilesAdapter;

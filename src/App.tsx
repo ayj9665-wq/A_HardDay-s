@@ -83,6 +83,10 @@ export default function App() {
   }, [state.backgroundMode]);
 
   useEffect(() => {
+    document.documentElement.dataset.os = platform.os;
+  }, [platform]);
+
+  useEffect(() => {
     if (!hydrated || !platform.window.supported) return;
     void platform.window.setAlwaysOnTop(state.alwaysOnTop).catch(() => {
       // Keep the rest of the app usable if the platform rejects this window level.

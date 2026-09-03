@@ -1,3 +1,4 @@
+import { detectOperatingSystem } from "./os";
 import type { Platform, SaveFileRequest } from "./types";
 
 function downloadInBrowser({ data, suggestedName }: SaveFileRequest) {
@@ -18,6 +19,9 @@ function downloadInBrowser({ data, suggestedName }: SaveFileRequest) {
  */
 export const webPlatform: Platform = {
   kind: "web",
+  get os() {
+    return detectOperatingSystem();
+  },
 
   storage: {
     async read(key) {

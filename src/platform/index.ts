@@ -2,6 +2,7 @@ import { tauriPlatform } from "./tauri";
 import { webPlatform } from "./web";
 import type { Platform } from "./types";
 
+export type { OperatingSystem } from "./os";
 export type {
   ApplicationsAdapter,
   FilesAdapter,

@@ -2,6 +2,7 @@
 
 import { afterEach, describe, expect, it } from "vitest";
 import { getPlatform, setPlatform } from ".";
+import { detectOperatingSystem } from "./os";
 import { webPlatform } from "./web";
 
 afterEach(() => {
@@ -40,6 +41,12 @@ describe("platform selection", () => {
     expect(typeof stop).toBe("function");
     expect(() => stop()).not.toThrow();
     expect(calls).toEqual([]);
+  });
+
+  it("reads the operating system off the user agent", () => {
+    expect(detectOperatingSystem("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")).toBe("macos");
+    expect(detectOperatingSystem("Mozilla/5.0 (Windows NT 10.0; Win64; x64)")).toBe("windows");
+    expect(detectOperatingSystem("Mozilla/5.0 (X11; Linux x86_64)")).toBe("other");
   });
 
   it("round-trips state through browser storage", async () => {
