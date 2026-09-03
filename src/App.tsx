@@ -101,14 +101,20 @@ export default function App() {
   useEffect(() => {
     if (!hydrated) return;
     let listening = true;
+    let announced = false;
     let stopListening: (() => void) | undefined;
 
     const apply = (application: RunningApplication | null) => {
-      if (listening) setForegroundApplication(application);
+      if (!listening) return;
+      announced = true;
+      setForegroundApplication(application);
     };
 
-    // One read for the current state, then the system tells us about changes.
-    void platform.applications.getForeground().then(apply).catch(() => apply(null));
+    // Subscribe first, then read. The system announces only *changes*, so a
+    // switch made while the subscription is still being set up is never
+    // repeated -- and the app would go on crediting time to whatever the read
+    // returned. For the same reason the read is dropped once an event has
+    // arrived: it was taken earlier and is the staler of the two answers.
     void platform.applications.onForegroundChange(apply)
       .then((unlisten) => {
         if (listening) stopListening = unlisten;
@@ -116,6 +122,13 @@ export default function App() {
       })
       .catch(() => {
         // Without the subscription the app still works; it just stops noticing switches.
+      })
+      .then(() => platform.applications.getForeground())
+      .then((application) => {
+        if (listening && !announced) setForegroundApplication(application);
+      })
+      .catch(() => {
+        if (listening && !announced) setForegroundApplication(null);
       });
 
     return () => {

@@ -32,7 +32,11 @@ pub const FOREGROUND_CHANGED_EVENT: &str = "application://foreground-changed";
 /// The OS callbacks carry no user data, so the handle has to live here.
 static APP: OnceLock<AppHandle> = OnceLock::new();
 /// Last application reported, so switching windows within one app stays quiet.
-static LAST_REPORTED: Mutex<Option<String>> = Mutex::new(None);
+/// The outer `None` means "nothing announced yet", which is a different state
+/// from having announced that no tracked application is in front. Without that
+/// distinction the first switch *into* this app is swallowed, and the frontend
+/// keeps crediting work to whichever application it read at startup.
+static LAST_REPORTED: Mutex<Option<Option<String>>> = Mutex::new(None);
 
 /// Called by the platform layer when the OS says the foreground changed. The
 /// de-duplication lives here so every OS emits on the same rule.
@@ -48,10 +52,10 @@ fn foreground_changed() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     };
-    if *last == identity {
+    if last.as_ref() == Some(&identity) {
         return;
     }
-    *last = identity;
+    *last = Some(identity);
     drop(last);
 
     let _ = app.emit(FOREGROUND_CHANGED_EVENT, current);
