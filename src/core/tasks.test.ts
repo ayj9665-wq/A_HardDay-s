@@ -116,12 +116,14 @@ describe("task domain", () => {
 
   it("names an application from its file name on either operating system", () => {
     const state = normalizeState({
-      tasks: [task({
+      // Stored before the name was recorded, so it arrives without one.
+      tasks: [{
+        ...task(),
         linkedApplications: [
           { processName: "Code.exe", executablePath: "C:\\Code.exe", trackedSeconds: 0 },
           { processName: "Safari.app", executablePath: "/Applications/Safari.app", trackedSeconds: 0 },
         ],
-      })],
+      }],
     });
 
     expect(state.tasks[0].linkedApplications.map((one) => one.name)).toEqual(["Code", "Safari"]);
