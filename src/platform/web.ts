@@ -14,8 +14,9 @@ function downloadInBrowser({ data, suggestedName }: SaveFileRequest) {
 }
 
 /**
- * Browser preview runtime. Desktop-only capabilities report `supported: false`
- * instead of failing, so the UI can say "desktop only" rather than "none found".
+ * Browser preview runtime. Desktop-only capabilities report themselves
+ * unsupported instead of failing, so the UI can say "desktop only" rather than
+ * "none found".
  */
 export const webPlatform: Platform = {
   kind: "web",
