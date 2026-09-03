@@ -67,3 +67,25 @@ npm run tauri build -- --no-bundle
 ```
 
 설치 패키지까지 만들려면 `--no-bundle`을 빼고 실행합니다. **OS별 빌드는 반드시 해당 OS에서 수행해야 합니다** — Windows 설치 파일은 Windows에서, macOS `.app`/`.dmg`는 macOS에서만 만들 수 있습니다.
+
+## 배포
+
+태그를 푸시하면 `.github/workflows/release.yml`이 두 OS에서 각각 설치 패키지를 만들어 아티팩트로 올립니다.
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+macOS 빌드는 `universal-apple-darwin` 타깃이라 Intel과 Apple Silicon에서 모두 실행됩니다.
+
+### 서명
+
+서명 자격 증명이 없으면 워크플로는 서명하지 않은 패키지를 만듭니다. 이 경우 받는 사람은 다음을 거쳐야 실행할 수 있습니다.
+
+- macOS — Gatekeeper가 차단합니다. 앱을 Control-클릭한 뒤 **열기**를 선택하고 한 번 더 확인합니다.
+- Windows — SmartScreen이 경고합니다. **추가 정보**를 누른 뒤 **실행**을 선택합니다.
+
+서명하려면 저장소 시크릿에 `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`를 등록합니다. 워크플로가 이미 이 값들을 읽고 있으므로 등록만 하면 다음 태그부터 서명과 공증이 적용됩니다.
+
+제품 이름에 공백과 아포스트로피가 들어 있으므로(`A Hard Day's.app`), 산출물 경로를 다루는 스크립트에서는 항상 따옴표로 감싸세요.

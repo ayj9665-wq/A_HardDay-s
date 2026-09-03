@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  bundle:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One system failing should not hide whether the other one packaged.
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: windows
+            args: ""
+            bundles: src-tauri/target/release/bundle
+          - os: macos-14
+            label: macos-universal
+            # Runners are Apple Silicon; without this the build would not run on
+            # an Intel Mac at all.
+            args: --target universal-apple-darwin
+            bundles: src-tauri/target/universal-apple-darwin/release/bundle
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Add the Intel and Apple Silicon targets
+        if: matrix.label == 'macos-universal'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - name: Bundle the installers
+        # Signing is skipped when these secrets are unset, so the workflow works
+        # before the certificates exist and signs once they are added.
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run tauri build -- ${{ matrix.args }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: a-hard-days-${{ matrix.label }}
+          # The product name contains a space and an apostrophe, so every path
+          # that touches it stays quoted.
+          path: |
+            ${{ matrix.bundles }}/dmg/*.dmg
+            ${{ matrix.bundles }}/macos/*.app
+            ${{ matrix.bundles }}/nsis/*.exe
+            ${{ matrix.bundles }}/msi/*.msi
+          if-no-files-found: ignore
