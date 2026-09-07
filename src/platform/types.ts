@@ -1,4 +1,5 @@
 import type { RunningApplication } from "../types";
+import type { OperatingSystem } from "./os";
 
 /**
  * The contract every runtime must satisfy. Feature code depends on this shape
@@ -6,6 +7,8 @@ import type { RunningApplication } from "../types";
  */
 export type Platform = {
   readonly kind: "desktop" | "web";
+  /** Which system the app is on. `kind` answers a different question: which runtime. */
+  readonly os: OperatingSystem;
   readonly storage: StorageAdapter;
   readonly applications: ApplicationsAdapter;
   readonly files: FilesAdapter;
@@ -19,8 +22,12 @@ export type StorageAdapter = {
 };
 
 export type ApplicationsAdapter = {
-  /** False when the runtime cannot inspect other windows at all. */
-  readonly supported: boolean;
+  /**
+   * Resolves false where nothing can be inspected: a browser tab, or a desktop
+   * build for an OS with no implementation. The UI words that differently from
+   * "found nothing running", so the two must stay distinguishable.
+   */
+  isSupported(): Promise<boolean>;
   listRunning(): Promise<RunningApplication[]>;
   getForeground(): Promise<RunningApplication | null>;
   /**

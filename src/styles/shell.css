@@ -13,6 +13,12 @@
   transition: opacity 130ms ease, transform 130ms ease;
 }
 
+/* macOS puts window controls at the top left, Windows at the top right. */
+[data-os="macos"] .window-chrome {
+  right: auto;
+  left: 0;
+}
+
 .window-chrome:hover,
 .window-chrome:focus-within {
   opacity: 1;

@@ -114,6 +114,21 @@ describe("task domain", () => {
     ]);
   });
 
+  it("names an application from its file name on either operating system", () => {
+    const state = normalizeState({
+      // Stored before the name was recorded, so it arrives without one.
+      tasks: [{
+        ...task(),
+        linkedApplications: [
+          { processName: "Code.exe", executablePath: "C:\\Code.exe", trackedSeconds: 0 },
+          { processName: "Safari.app", executablePath: "/Applications/Safari.app", trackedSeconds: 0 },
+        ],
+      }],
+    });
+
+    expect(state.tasks[0].linkedApplications.map((one) => one.name)).toEqual(["Code", "Safari"]);
+  });
+
   it("ignores a task total stored before it became a derived figure", () => {
     const state = normalizeState({
       tasks: [{
@@ -190,6 +205,13 @@ describe("tracked seconds", () => {
     const next = addTrackedSeconds(stateWith("C:\\Apps\\Code.exe"), "task-1", "c:\\apps\\CODE.EXE", 7);
 
     expect(totals(next)).toEqual({ task: 7, applications: [7] });
+  });
+
+  it("credits a macOS bundle path the same way", () => {
+    const state = stateWith("/Applications/Safari.app", "/Applications/Figma.app");
+    const next = addTrackedSeconds(state, "task-1", "/Applications/Figma.app", 11);
+
+    expect(totals(next)).toEqual({ task: 11, applications: [0, 11] });
   });
 
   it("credits only the application that was in the foreground", () => {

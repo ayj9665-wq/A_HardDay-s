@@ -11,7 +11,8 @@ export type LinkedApplication = {
 };
 
 export type RunningApplication = Omit<LinkedApplication, "trackedSeconds"> & {
-  windowTitle: string;
+  /** Second line in the picker: a window title on Windows, a bundle id on macOS. */
+  detail: string;
 };
 
 export type Task = {

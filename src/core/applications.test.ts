@@ -7,14 +7,45 @@ const code = {
   executablePath: "C:\\Apps\\Code.exe",
 };
 
+const safari = {
+  name: "Safari",
+  processName: "Safari.app",
+  executablePath: "/Applications/Safari.app",
+};
+
 describe("application tracking", () => {
   it("normalizes Windows paths for stable matching", () => {
     expect(applicationIdentity(code)).toBe("c:\\apps\\code.exe");
     expect(applicationsMatch(code, {
       ...code,
       executablePath: "c:\\APPS\\CODE.EXE",
-      windowTitle: "project - Visual Studio Code",
+      detail: "project - Visual Studio Code",
     })).toBe(true);
+  });
+
+  it("matches macOS bundle paths the same way", () => {
+    expect(applicationIdentity(safari)).toBe("/applications/safari.app");
+    expect(applicationsMatch(safari, {
+      ...safari,
+      executablePath: " /Applications/Safari.app ",
+      detail: "com.apple.Safari",
+    })).toBe(true);
+  });
+
+  it("keeps two applications in the same macOS folder apart", () => {
+    expect(applicationsMatch(safari, {
+      name: "Notes",
+      processName: "Notes.app",
+      executablePath: "/Applications/Notes.app",
+      detail: "com.apple.Notes",
+    })).toBe(false);
+  });
+
+  it("folds case without asking the host locale", () => {
+    // A Turkish locale folds "I" to a dotless letter, which would quietly stop
+    // an application from matching itself.
+    expect(applicationIdentity({ executablePath: "C:\\Apps\\IDEA.exe" }))
+      .toBe("c:\\apps\\idea.exe");
   });
 
   it("does not match a different or missing foreground application", () => {
@@ -23,7 +54,7 @@ describe("application tracking", () => {
       name: "Chrome",
       processName: "chrome.exe",
       executablePath: "C:\\Apps\\Chrome.exe",
-      windowTitle: "Chrome",
+      detail: "Chrome",
     })).toBe(false);
   });
 });

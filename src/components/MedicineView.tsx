@@ -7,6 +7,7 @@ import { Prescription } from "./medicine/Prescription";
 import { useImageLayers } from "./medicine/useImageLayers";
 import { useLayerAnalysis } from "./medicine/useLayerAnalysis";
 import { messageForError } from "../ui/messages";
+import { isDeleteKey } from "../ui/shortcuts";
 
 type MedicineViewProps = {
   hidden?: boolean;
@@ -52,7 +53,7 @@ export function MedicineView({ hidden = false }: MedicineViewProps) {
     if (hidden || !selectedId) return;
 
     const deleteSelected = (event: KeyboardEvent) => {
-      if (event.key !== "Delete" || isTypingTarget(event.target)) return;
+      if (!isDeleteKey(event.key) || isTypingTarget(event.target)) return;
       event.preventDefault();
       remove(selectedId);
     };

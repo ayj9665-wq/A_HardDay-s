@@ -1,4 +1,5 @@
 import { applicationIdentity } from "./applications";
+import { createId } from "./ids";
 import {
   CLOCK_HOURS,
   type AppState,
@@ -37,13 +38,13 @@ function normalizeLinkedApplications(value: unknown): LinkedApplication[] {
       : "";
     const processName = typeof source.processName === "string" ? source.processName.trim() : "";
     if (!executablePath || !processName) continue;
-    const identity = executablePath.toLocaleLowerCase();
+    const identity = applicationIdentity({ executablePath });
     if (seen.has(identity)) continue;
     seen.add(identity);
     applications.push({
       name: typeof source.name === "string" && source.name.trim()
         ? source.name.trim()
-        : processName.replace(/\.exe$/i, ""),
+        : processName.replace(/\.(exe|app)$/i, ""),
       processName,
       executablePath,
       trackedSeconds: typeof source.trackedSeconds === "number" && Number.isFinite(source.trackedSeconds)
@@ -107,7 +108,7 @@ export function normalizeTasks(value: unknown): Task[] {
     const now = new Date().toISOString();
     usedHours.add(item.hourSlot);
     normalized.push({
-      id: typeof item.id === "string" && item.id ? item.id : crypto.randomUUID(),
+      id: typeof item.id === "string" && item.id ? item.id : createId(),
       text,
       hourSlot: item.hourSlot,
       completed: Boolean(item.completed),
@@ -206,7 +207,7 @@ export function createTask(text: string, hourSlot: ClockHour, order: number): Ta
   const now = new Date().toISOString();
   const random = crypto.getRandomValues(new Uint8Array(1))[0];
   return {
-    id: crypto.randomUUID(),
+    id: createId(),
     text: sanitizeTaskText(text),
     hourSlot,
     completed: false,

@@ -1,4 +1,5 @@
 import { AppError } from "../core/errors";
+import { createId } from "../core/ids";
 import { IMAGE_POLICY, isAllowedImageType, isWithinImageSize } from "../core/imagePolicy";
 import type { RecommendationTrack } from "../core/trackCatalog";
 import type { ImageLayer, LayerPlacement } from "../core/imageLayers";
@@ -33,7 +34,7 @@ export async function prepareImageLayer(
     const aspect = image.naturalWidth / image.naturalHeight;
     const initialWidth = aspect < 0.8 ? 35 : aspect > 1.8 ? 62 : 48;
     return {
-      id: crypto.randomUUID(),
+      id: createId(),
       previewUrl,
       fileName: file.name || "clipboard-image",
       naturalWidth: image.naturalWidth,

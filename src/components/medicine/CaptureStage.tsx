@@ -10,6 +10,8 @@ import {
   type PointerAction,
 } from "../../core/imageLayers";
 import { downloadDroppedImage, extractDroppedImageSources } from "../../lib/dropImages";
+import { getPlatform } from "../../platform";
+import { modifierLabel } from "../../ui/shortcuts";
 
 type CaptureStageProps = {
   layers: ImageLayer[];
@@ -147,7 +149,7 @@ export function CaptureStage({
         <button type="button" className="capture-prompt" onClick={() => inputRef.current?.click()}>
           <span className="capture-mark" aria-hidden="true">+</span>
           <strong>{draggingFiles ? "RELEASE TO ADD" : "DROP IMAGES"}</strong>
-          <small>FROM DESKTOP OR WEB · JPG · PNG · CTRL + V</small>
+          <small>FROM DESKTOP OR WEB · JPG · PNG · {modifierLabel(getPlatform().os)} + V</small>
         </button>
       ) : (
         layers.map((layer, index) => (

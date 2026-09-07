@@ -1,241 +1,81 @@
-use serde::Serialize;
+mod platform;
 
+use serde::Serialize;
+use std::sync::{Mutex, OnceLock};
+use tauri::{AppHandle, Emitter};
+
+/// One application a person could be working in.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct RunningApplication {
+pub struct RunningApplication {
     name: String,
     process_name: String,
+    /// Identity that survives restarts: the `.exe` path on Windows, the `.app`
+    /// bundle path on macOS.
     executable_path: String,
-    window_title: String,
+    /// Second line in the picker. Windows fills it with the window title, macOS
+    /// with the bundle identifier — window titles there would cost a permission
+    /// prompt this app does not need.
+    detail: String,
 }
 
-#[cfg(target_os = "windows")]
-mod application_detection {
-    use super::RunningApplication;
-    use std::{
-        collections::HashSet,
-        ffi::OsString,
-        os::windows::ffi::OsStringExt,
-        path::Path,
-    };
-    use windows_sys::Win32::{
-        Foundation::{CloseHandle, BOOL, HWND, LPARAM},
-        System::Threading::{
-            OpenProcess, QueryFullProcessImageNameW, PROCESS_QUERY_LIMITED_INFORMATION,
-        },
-        UI::WindowsAndMessaging::{
-            EnumWindows, GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
-            GetWindowThreadProcessId, IsWindowVisible,
-        },
-    };
-
-    unsafe fn window_title(hwnd: HWND) -> String {
-        let length = GetWindowTextLengthW(hwnd);
-        if length <= 0 {
-            return String::new();
-        }
-        let mut buffer = vec![0_u16; length as usize + 1];
-        let copied = GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32);
-        OsString::from_wide(&buffer[..copied.max(0) as usize])
-            .to_string_lossy()
-            .trim()
-            .to_string()
-    }
-
-    unsafe fn executable_path(process_id: u32) -> Option<String> {
-        let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, process_id);
-        if process.is_null() {
-            return None;
-        }
-
-        let mut buffer = vec![0_u16; 32_768];
-        let mut length = buffer.len() as u32;
-        let succeeded = QueryFullProcessImageNameW(process, 0, buffer.as_mut_ptr(), &mut length);
-        CloseHandle(process);
-        if succeeded == 0 || length == 0 {
-            return None;
-        }
-
-        Some(
-            OsString::from_wide(&buffer[..length as usize])
-                .to_string_lossy()
-                .to_string(),
-        )
-    }
-
-    unsafe fn application_for_window(hwnd: HWND) -> Option<RunningApplication> {
-        if hwnd.is_null() || IsWindowVisible(hwnd) == 0 {
-            return None;
-        }
-        let title = window_title(hwnd);
-        if title.is_empty() {
-            return None;
-        }
-
-        let mut process_id = 0_u32;
-        GetWindowThreadProcessId(hwnd, &mut process_id);
-        if process_id == 0 || process_id == std::process::id() {
-            return None;
-        }
-        let path = executable_path(process_id)?;
-        let process_name = Path::new(&path)
-            .file_name()
-            .map(|value| value.to_string_lossy().to_string())?;
-        let name = Path::new(&process_name)
-            .file_stem()
-            .map(|value| value.to_string_lossy().to_string())
-            .unwrap_or_else(|| process_name.clone());
-
-        Some(RunningApplication {
-            name,
-            process_name,
-            executable_path: path,
-            window_title: title,
-        })
-    }
-
-    unsafe extern "system" fn collect_window(hwnd: HWND, data: LPARAM) -> BOOL {
-        let applications = &mut *(data as *mut Vec<RunningApplication>);
-        if let Some(application) = application_for_window(hwnd) {
-            applications.push(application);
-        }
-        1
-    }
-
-    pub fn list_running() -> Vec<RunningApplication> {
-        let mut applications: Vec<RunningApplication> = Vec::new();
-        unsafe {
-            EnumWindows(Some(collect_window), &mut applications as *mut _ as LPARAM);
-        }
-        let mut seen = HashSet::new();
-        applications.retain(|application| seen.insert(application.executable_path.to_lowercase()));
-        applications.sort_by(|first, second| {
-            first
-                .name
-                .to_lowercase()
-                .cmp(&second.name.to_lowercase())
-        });
-        applications
-    }
-
-    pub fn foreground() -> Option<RunningApplication> {
-        unsafe { application_for_window(GetForegroundWindow()) }
+impl RunningApplication {
+    /// Must match `applicationIdentity` in `src/core/applications.ts`.
+    fn identity(&self) -> String {
+        self.executable_path.trim().to_lowercase()
     }
 }
 
 /// Name of the event the frontend listens on for foreground changes.
 pub const FOREGROUND_CHANGED_EVENT: &str = "application://foreground-changed";
 
-#[cfg(target_os = "windows")]
-mod foreground_watch {
-    use super::{application_detection, FOREGROUND_CHANGED_EVENT};
-    use std::sync::{Mutex, OnceLock};
-    use tauri::{AppHandle, Emitter};
-    use windows_sys::Win32::{
-        Foundation::HWND,
-        UI::{
-            Accessibility::{SetWinEventHook, HWINEVENTHOOK},
-            WindowsAndMessaging::{
-                DispatchMessageW, GetMessageW, TranslateMessage, EVENT_SYSTEM_FOREGROUND, MSG,
-                WINEVENT_OUTOFCONTEXT,
-            },
-        },
+/// The OS callbacks carry no user data, so the handle has to live here.
+static APP: OnceLock<AppHandle> = OnceLock::new();
+/// Last application reported, so switching windows within one app stays quiet.
+/// The outer `None` means "nothing announced yet", which is a different state
+/// from having announced that no tracked application is in front. Without that
+/// distinction the first switch *into* this app is swallowed, and the frontend
+/// keeps crediting work to whichever application it read at startup.
+static LAST_REPORTED: Mutex<Option<Option<String>>> = Mutex::new(None);
+
+/// Called by the platform layer when the OS says the foreground changed. The
+/// de-duplication lives here so every OS emits on the same rule.
+fn foreground_changed() {
+    let Some(app) = APP.get() else {
+        return;
     };
 
-    /// The callback carries no user data, so the handle has to live here.
-    static APP: OnceLock<AppHandle> = OnceLock::new();
-    /// Last executable reported, so switching windows within one app stays quiet.
-    static LAST_REPORTED: Mutex<Option<String>> = Mutex::new(None);
+    let current = platform::foreground();
+    let identity = current.as_ref().map(RunningApplication::identity);
 
-    fn emit_if_changed() {
-        let Some(app) = APP.get() else {
-            return;
-        };
-
-        let current = application_detection::foreground();
-        let identity = current
-            .as_ref()
-            .map(|application| application.executable_path.to_lowercase());
-
-        let mut last = match LAST_REPORTED.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        };
-        if *last == identity {
-            return;
-        }
-        *last = identity;
-        drop(last);
-
-        let _ = app.emit(FOREGROUND_CHANGED_EVENT, current);
+    let mut last = match LAST_REPORTED.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    if last.as_ref() == Some(&identity) {
+        return;
     }
+    *last = Some(identity);
+    drop(last);
 
-    unsafe extern "system" fn on_foreground_changed(
-        _hook: HWINEVENTHOOK,
-        _event: u32,
-        _window: HWND,
-        _object_id: i32,
-        _child_id: i32,
-        _thread_id: u32,
-        _timestamp: u32,
-    ) {
-        emit_if_changed();
-    }
+    let _ = app.emit(FOREGROUND_CHANGED_EVENT, current);
+}
 
-    /// Installs a system hook that fires only when the foreground window changes.
-    /// Nothing polls: the thread below exists purely to pump the hook's messages.
-    pub fn start(app: AppHandle) {
-        if APP.set(app).is_err() {
-            return;
-        }
-
-        std::thread::spawn(|| unsafe {
-            let hook = SetWinEventHook(
-                EVENT_SYSTEM_FOREGROUND,
-                EVENT_SYSTEM_FOREGROUND,
-                std::ptr::null_mut(),
-                Some(on_foreground_changed),
-                0,
-                0,
-                // Deliberately not SKIPOWNPROCESS: when this app takes focus the
-                // frontend must hear about it so tracking pauses.
-                WINEVENT_OUTOFCONTEXT,
-            );
-            if hook.is_null() {
-                return;
-            }
-
-            let mut message: MSG = std::mem::zeroed();
-            while GetMessageW(&mut message, std::ptr::null_mut(), 0, 0) > 0 {
-                TranslateMessage(&message);
-                DispatchMessageW(&message);
-            }
-        });
-    }
+/// Whether this build can inspect other applications at all. The frontend needs
+/// this to tell "no applications open" apart from "not available here".
+#[tauri::command]
+fn application_tracking_supported() -> bool {
+    platform::SUPPORTED
 }
 
 #[tauri::command]
 fn list_running_applications() -> Vec<RunningApplication> {
-    #[cfg(target_os = "windows")]
-    {
-        application_detection::list_running()
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        Vec::new()
-    }
+    platform::list_running()
 }
 
 #[tauri::command]
 fn get_foreground_application() -> Option<RunningApplication> {
-    #[cfg(target_os = "windows")]
-    {
-        application_detection::foreground()
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        None
-    }
+    platform::foreground()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -246,12 +86,14 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            application_tracking_supported,
             list_running_applications,
             get_foreground_application
         ])
-        .setup(|_app| {
-            #[cfg(target_os = "windows")]
-            foreground_watch::start(_app.handle().clone());
+        .setup(|app| {
+            if APP.set(app.handle().clone()).is_ok() {
+                platform::watch_foreground();
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

@@ -1,0 +1,5 @@
+# Pins every machine and CI runner to rustup-managed stable rather than whatever
+# rustc happens to be on PATH. Tauri 2.11 needs 1.77.2 or newer.
+[toolchain]
+channel = "stable"
+components = ["clippy", "rustfmt"]

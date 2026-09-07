@@ -14,36 +14,93 @@
 
 날씨, 위치 권한, 비 효과, 흐린 창문 및 표면 텍스처는 포함하지 않습니다.
 
+## 지원 플랫폼
+
+Windows와 macOS를 동등하게 지원하는 것을 목표로 하며, CI가 두 OS에서 테스트와 빌드를 검증합니다.
+
+| 기능 | Windows | macOS | 비고 |
+| --- | --- | --- | --- |
+| 실행 중 앱 목록 | 창 단위 | 프로세스 단위 | macOS는 Dock에 뜨는 앱만 나열합니다 |
+| 앱 식별자 | `.exe` 경로 | `.app` 번들 경로 | 재설치와 업데이트를 넘겨 유지됩니다 |
+| 목록의 보조 설명 | 창 제목 | 번들 식별자 | macOS 창 제목은 화면 기록 권한을 요구하므로 읽지 않습니다 |
+| 창 버튼 위치 | 우상단 | 좌상단 | 각 OS 관례를 따릅니다 |
+| 투명 배경(`clear`) | 지원 | 지원 | macOS는 `macOSPrivateApi`로 활성화됩니다 |
+
+브라우저 미리보기에서는 앱 추적과 창 제어가 "데스크톱 전용"으로 안내됩니다. 실행으로만 확인되는 항목은
+[docs/manual-qa.md](docs/manual-qa.md)의 체크리스트로 릴리스마다 점검합니다.
+
+## 사전 요구 사항
+
+공통으로 필요한 것:
+
+- Node.js 20.19 이상 (`.nvmrc`가 권장 버전을 지정합니다)
+- Rust 툴체인 — [rustup](https://rustup.rs)으로 설치합니다. 데스크톱 실행에만 필요하며, 브라우저 미리보기와 테스트에는 필요하지 않습니다.
+
+### Windows
+
+- [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) — "Desktop development with C++" 워크로드
+- WebView2 런타임 — Windows 11에는 기본 탑재되어 있고, Windows 10에서는 [별도 설치](https://developer.microsoft.com/microsoft-edge/webview2/)가 필요할 수 있습니다.
+
+### macOS
+
+- Xcode Command Line Tools
+
+  ```sh
+  xcode-select --install
+  ```
+
+rustup 설치 직후에는 `cargo`가 PATH에 잡히지 않을 수 있습니다. 새 터미널을 열거나 셸 프로필을 다시 읽으세요.
+
 ## 프런트엔드 실행
 
-```powershell
-npm.cmd install
-npm.cmd run dev
+```sh
+npm install
+npm run dev
 ```
 
-브라우저에서 `http://localhost:1420`을 엽니다. 브라우저 미리보기에서는 데이터가 `localStorage`에 저장됩니다.
+브라우저에서 `http://localhost:1420`을 엽니다. 브라우저 미리보기에서는 데이터가 `localStorage`에 저장되고, 앱 추적과 창 제어 같은 데스크톱 전용 기능은 "미지원"으로 표시됩니다.
 
 ## 테스트와 빌드
 
-```powershell
-npm.cmd test
-npm.cmd run build
+```sh
+npm test
+npm run build
 ```
 
 ## 데스크톱 실행
 
-Rust와 운영체제별 Tauri 사전 요구 사항을 설치한 뒤 실행합니다.
-
-```powershell
-$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
-npm.cmd run tauri dev
+```sh
+npm run tauri dev
 ```
 
 Tauri 앱에서는 데이터가 앱 전용 Store 파일에 저장됩니다.
 
 릴리스 실행 파일만 생성하려면 다음 명령을 사용합니다.
 
-```powershell
-$env:PATH = "$env:USERPROFILE\.cargo\bin;$env:PATH"
-npm.cmd run tauri build -- --no-bundle
+```sh
+npm run tauri build -- --no-bundle
 ```
+
+설치 패키지까지 만들려면 `--no-bundle`을 빼고 실행합니다. **OS별 빌드는 반드시 해당 OS에서 수행해야 합니다** — Windows 설치 파일은 Windows에서, macOS `.app`/`.dmg`는 macOS에서만 만들 수 있습니다.
+
+## 배포
+
+태그를 푸시하면 `.github/workflows/release.yml`이 두 OS에서 각각 설치 패키지를 만들어 아티팩트로 올립니다.
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+macOS 빌드는 `universal-apple-darwin` 타깃이라 Intel과 Apple Silicon에서 모두 실행됩니다.
+
+### 서명
+
+서명 자격 증명이 없으면 워크플로는 서명하지 않은 패키지를 만듭니다. 이 경우 받는 사람은 다음을 거쳐야 실행할 수 있습니다.
+
+- macOS — Gatekeeper가 차단합니다. 앱을 Control-클릭한 뒤 **열기**를 선택하고 한 번 더 확인합니다.
+- Windows — SmartScreen이 경고합니다. **추가 정보**를 누른 뒤 **실행**을 선택합니다.
+
+서명하려면 저장소 시크릿에 `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`를 등록합니다. 워크플로가 이미 이 값들을 읽고 있으므로 등록만 하면 다음 태그부터 서명과 공증이 적용됩니다.
+
+제품 이름에 공백과 아포스트로피가 들어 있으므로(`A Hard Day's.app`), 산출물 경로를 다루는 스크립트에서는 항상 따옴표로 감싸세요.
